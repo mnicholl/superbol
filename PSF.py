@@ -48,18 +48,65 @@ import os
 import matplotlib.pyplot as plt
 from collections import OrderedDict
 from mpl_toolkits.mplot3d import Axes3D
+import argparse
 
 
 ####### Parameters to vary if things aren't going well: #####################
-
-aprad = 10      # aperture radius for phot
-nPSF = 10              # number of PSF stars to try
-recen_rad_stars = 10     # recentering radius: increase if centroid not found; decrease if wrong centroid found!
-recen_rad_sn = 5
-varOrd = 0             # PSF model order: -1 = pure analytic, 2 = high-order empirical corrections, 0/1 intermediate
-sigClip = 1         # Reject sequence stars if calculated ZP differs by this may sigma from the mean
-
+#
+# aprad = 10      # aperture radius for phot
+# nPSF = 10              # number of PSF stars to try
+# recen_rad_stars = 10     # recentering radius: increase if centroid not found; decrease if wrong centroid found!
+# recen_rad_sn = 5
+# varOrd = 0             # PSF model order: -1 = pure analytic, 2 = high-order empirical corrections, 0/1 intermediate
+# sigClip = 1         # Reject sequence stars if calculated ZP differs by this may sigma from the mean
+#
 #############
+
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument('--ap', dest='aprad', default=10, type=int,
+                    help='Radius for aperture/PSF phot.')
+
+parser.add_argument('--npsf', dest='nPSF', default=10, type=int,
+                    help='Number of PSF stars.')
+
+parser.add_argument('--re', dest='recen_rad_stars', default=10, type=int,
+                    help='Radius for recentering on stars.')
+
+parser.add_argument('--resn', dest='recen_rad_sn', default=5, type=int,
+                    help='Radius for recentering on SN.')
+
+parser.add_argument('--var', dest='varOrd', default=0, type=int,
+                    help='Order for PSF model.')
+
+parser.add_argument('--sig', dest='sigClip', default=1, type=int,
+                    help='Radius for aperture/PSF phot.')
+
+parser.add_argument('-i', dest='file_to_reduce', default='', nargs='+',
+                    help='List of files to reduce. Accepts wildcards or '
+                    'space-delimited list.')
+
+
+args = parser.parse_args()
+
+
+aprad = args.aprad
+nPSF = args.nPSF
+recen_rad_stars = args.recen_rad_stars
+recen_rad_sn = args.recen_rad_sn
+varOrd = args.varOrd
+sigClip = args.sigClip
+
+
+ims = [i for i in args.file_to_reduce]
+
+
+if len(ims) == 0:
+    ims = glob.glob('*.fits')
+
+
+##################################################
 
 iraf.centerpars.calgo='centroid'
 #iraf.centerpars.cbox=recen_rad_stars
@@ -87,6 +134,8 @@ daophot.daopars.fitsky='yes'
 
 
 ##################################################
+
+
 
 # Try to match header keyword to a known filter automatically:
 
@@ -139,6 +188,9 @@ for i in glob.glob('*pix*fits'):
 
 for i in glob.glob('*_psf_stars.txt'):
     os.remove(i)
+
+
+
 
 
 outdir = 'PSF_output_'+str(len(glob.glob('PSF_phot_*')))
@@ -217,13 +269,6 @@ for i in range(len(seqHead)-2):
 
 #### BEGIN LOOP OVER IMAGES ####
 
-ims = []
-
-if len(sys.argv) > 1:
-    for i in range(1,len(sys.argv)):
-        ims.append(sys.argv[i])
-else:
-    ims = glob.glob('*.fits')
 
 
 for image in ims:
