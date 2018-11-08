@@ -4,6 +4,9 @@
     SUPERBOL: Supernova Bolometric Light Curves
     Written by Matt Nicholl, 2015
 
+    Version 1.12: Change UV suppression to power law (lambda/lambda_max)^x following Nicholl, Guillochon & Berger 2017 (MN)
+    Version 1.11: Added ATLAS c and o filters (MN)
+    Version 1.10: Added Gaia G filter. Automatically sort wavelength array when calculating Luminosity. Updated constants in bbody. Added option to change cosmologies with astropy. (SG)
     Version 1.9 : Only do separate UV fit if > 2 UV filters (MN)
     Version 1.8 : New feature! Can choose to shift SED to rest-frame for data with no K-correction (MN)
     Version 1.7 : Improved handling of errors (MN)
@@ -53,19 +56,53 @@ from scipy.interpolate import interpolate as interp
 import glob
 import sys
 import os
+from astropy.coordinates import Distance
 #import time
 
 
-print('\n    * * * * * * * * * * * * * * * * * * * * *\n    *                                       *\n    *        Welcome to `SUPER BOL`!        *\n    *   SUPernova BOLometric light curves   *\n    *                                       *\n    *                ______                 *\n    *               {\   */}                *\n    *                 \__/                  *\n    *                  ||                   *\n    *                 ====                  *\n    *                                       *\n    *           M. Nicholl (V1.8)           *\n    *                                       *\n    * * * * * * * * * * * * * * * * * * * * *\n\n')
+print('\n    * * * * * * * * * * * * * * * * * * * * *\n    *                                       *\n    *        Welcome to `SUPER BOL`!        *\n    *   SUPernova BOLometric light curves   *\n    *                                       *\n    *                ______                 *\n    *               {\   */}                *\n    *                 \__/                  *\n    *                  ||                   *\n    *                 ====                  *\n    *                                       *\n    *           M. Nicholl (V1.11)           *\n    *                                       *\n    * * * * * * * * * * * * * * * * * * * * *\n\n')
 
 
 plt.ion()
 
 def bbody(lam,T,R):
-    A = 4*np.pi*R**2
-    Blam = A*(2*np.pi*6.626e-27*(3e10)**2/(lam*1e-8)**5)/(np.exp(6.627e-27*3e10/(lam*1e-8*1.38e-16*T))-1)/1e8
-    return Blam
+    '''
+    Calculate the corresponding blackbody radiance for a set
+    of wavelengths given a temperature and radiance.
 
+    Parameters
+    ---------------
+    lam: Reference wavelengths in Angstroms
+    T:   Temperature in Kelvin
+    R:   Radius in cm
+
+    Output
+    ---------------
+    Spectral radiance in units of erg/s/Angstrom
+    '''
+
+    # Planck Constant in cm^2 * g / s
+    h = 6.62607E-27
+    # Speed of light in cm/s
+    c = 2.99792458E10
+
+    # Convert wavelength to cm
+    lam_cm = lam * 1E-8
+
+    # Boltzmann Constant in cm^2 * g / s^2 / K
+    k_B = 1.38064852E-16
+
+    # Calculate Radiance B_lam, in units of (erg / s) / cm ^ 2 / cm
+    exponential = (h * c) / (lam_cm * k_B * T)
+    B_lam = ((2 * np.pi * h * c ** 2) / (lam_cm ** 5)) / (np.exp(exponential) - 1)
+
+    # Multiply by the surface area
+    A = 4*np.pi*R**2
+
+    # Output radiance in units of (erg / s) / Angstrom
+    Radiance = B_lam * A / 1E8
+
+    return Radiance
 
 def easyint(x,y,err,xref,yref):
     ir = (xref>=min(x))&(xref<=max(x))
@@ -90,7 +127,6 @@ def easyint(x,y,err,xref,yref):
 #These effective wavelengths for SDSS filters are from Fukugita et al. (1996, AJ, 111, 1748) and are
 #the wavelength weighted averages (effective wavelenghts in their Table 2a, first row)
 
-#See superbol.mann for more details
 #For AB mags,
 #     m(AB) = -2.5 log(f_nu) - 48.60.
 # f_nu is in units of ergs/s/cm2/Hz such that
@@ -104,9 +140,10 @@ def easyint(x,y,err,xref,yref):
 # That is not an original source, for AB mags it simply uses the f_lam =0.1089/(lambda_eff^2) relation, and the effective wavelengths from Fukugita et al.
 
 #Effective wavelengths (in Angs)
-wle = {'u': 3560, 'g': 4830, 'r': 6260, 'i': 7670, 'z': 9100, 'U': 3600,
-        'B': 4380, 'V': 5450, 'R': 6410, 'I': 7980, 'J': 12200, 'H': 16300,
-        'K': 21900, 'S': 2030, 'D': 2231, 'A': 2634, 'F': 1516, 'N': 2267}
+wle = {'u': 3560,  'g': 4830, 'r': 6260, 'i': 7670, 'z': 8890, 'y': 9600, 'Y': 9600,
+       'U': 3600,  'B': 4380, 'V': 5450, 'R': 6410, 'G': 6730, 'I': 7980, 'J': 12200, 'H': 16300,
+       'K': 21900, 'S': 2030, 'D': 2231, 'A': 2634, 'F': 1516, 'N': 2267, 'o': 6790, 'c': 5330}
+# For Swift UVOT, S=UVW2, D=UVM2, A=UVW1
 
 #Zeropoints (ugriz and GALEX NUV/FUV are in AB mag system, UBVRI are Johnson-Cousins in Vega mag, JHK are Glass system Vega mags, and Swift UVOT SDA are in Vega mag system)
 #
@@ -115,23 +152,23 @@ wle = {'u': 3560, 'g': 4830, 'r': 6260, 'i': 7670, 'z': 9100, 'U': 3600,
 #GALEX effective wavelengths from here: http://galex.stsci.edu/gr6/?page=faq
 
 #All values in 1e-11 erg/s/cm2/Angs
-zp = {'u': 859.5, 'g': 466.9, 'r': 278.0, 'i': 185.2, 'z': 131.5, 'U': 417.5,
-        'B': 632, 'V': 363.1, 'R': 217.7, 'I': 112.6, 'J': 31.47, 'H': 11.38,
-        'K': 3.961, 'S': 536.2, 'D': 463.7, 'A': 412.3, 'F': 4801., 'N': 2119.}
+zp = {'u': 859.5, 'g': 466.9, 'r': 278.0, 'i': 185.2, 'z': 137.8, 'y': 118.2, 'Y': 118.2,
+      'U': 417.5, 'B': 632.0, 'V': 363.1, 'R': 217.7, 'G': 240.0, 'I': 112.6, 'J': 31.47, 'H': 11.38,
+      'K': 3.961, 'S': 536.2, 'D': 463.7, 'A': 412.3, 'F': 4801., 'N': 2119., 'o': 236.2, 'c': 383.3}
 
 #Filter widths (in Angs)
-width = {'u': 458, 'g': 928, 'r': 812, 'i': 894, 'z': 1183, 'U': 485,
-            'B': 831, 'V': 827, 'R': 1389, 'I': 899, 'J': 1759, 'H': 2041,
-            'K': 2800, 'S': 671, 'D': 446, 'A': 821, 'F': 268, 'N': 732}
+width = {'u': 458,  'g': 928, 'r': 812, 'i': 894,  'z': 1183, 'y': 628, 'Y': 628,
+         'U': 485,  'B': 831, 'V': 827, 'R': 1389, 'G': 4203, 'I': 899, 'J': 1759, 'H': 2041,
+         'K': 2800, 'S': 671, 'D': 446, 'A': 821,  'F': 268,  'N': 732, 'o': 2580, 'c': 2280}
 
 
-cols = {'u': 'dodgerblue', 'g': 'g', 'r': 'r', 'i': 'goldenrod', 'z': 'k',
-        'U': 'slateblue', 'B': 'b', 'V': 'yellowgreen', 'R': 'crimson',
+cols = {'u': 'dodgerblue', 'g': 'g', 'r': 'r', 'i': 'goldenrod', 'z': 'k', 'y': '0.5',
+        'Y': '0.5', 'U': 'slateblue', 'B': 'b', 'V': 'yellowgreen', 'R': 'crimson', 'G': 'salmon',
         'I': 'chocolate', 'J': 'darkred', 'H': 'orangered', 'K': 'saddlebrown',
         'S': 'mediumorchid', 'D': 'purple', 'A': 'midnightblue',
-        'F': 'hotpink', 'N': 'cyan'}
+        'F': 'hotpink', 'N': 'magenta', 'o': 'darkorange', 'c': 'cyan'}
 
-bandlist = 'FSDNAuUBgVrRiIzJHK'
+bandlist = 'FSDNAuUBgcVrRoGiIzyYJHK'
 
 
 print('\n######### Step 1: input files and filters ##########')
@@ -226,11 +263,35 @@ for i in use1:
     filts1 = filts1.split('_')[-1]
     filts2 += filts1
 
-    d = np.genfromtxt(files[i])
-    x = 1
-    for j in filts1:
-        lc[j] = np.array(list(zip(d[:,0][~np.isnan(d[:,x])],d[:,x][~np.isnan(d[:,x])],d[:,x+1][~np.isnan(d[:,x])])))
-        x+=2
+    try:
+        d = np.genfromtxt(files[i])
+        x = 1
+        for j in filts1:
+            lc[j] = np.array(list(zip(d[:,0][~np.isnan(d[:,x])],d[:,x][~np.isnan(d[:,x])],d[:,x+1][~np.isnan(d[:,x])])))
+            x+=2
+    except:
+        try:
+            d = np.genfromtxt(files[i],skip_header=1)
+            x = 1
+            for j in filts1:
+                lc[j] = np.array(list(zip(d[:,0][~np.isnan(d[:,x])],d[:,x][~np.isnan(d[:,x])],d[:,x+1][~np.isnan(d[:,x])])))
+                x+=2
+        except:
+            try:
+                d= np.genfromtxt(files[i],delimiter=',')
+                x = 1
+                for j in filts1:
+                    lc[j] = np.array(list(zip(d[:,0][~np.isnan(d[:,x])],d[:,x][~np.isnan(d[:,x])],d[:,x+1][~np.isnan(d[:,x])])))
+                    x+=2
+            except:
+                try:
+                    d= np.genfromtxt(files[i],delimiter=',',skip_header=1)
+                    x = 1
+                    for j in filts1:
+                        lc[j] = np.array(list(zip(d[:,0][~np.isnan(d[:,x])],d[:,x][~np.isnan(d[:,x])],d[:,x+1][~np.isnan(d[:,x])])))
+                        x+=2
+                except:
+                    raise ValueError('Could not read file')
 
 
 # sort known filters:
@@ -520,7 +581,7 @@ if z<10:
     ################# cosmocalc by N. Wright ##################
 
     # initialize constants
-
+    '''
     H0 = 70                         # Hubble constant
     WM = 0.27                        # Omega(matter)
     WV = 1.0 - WM - 0.4165/(H0*H0)  # Omega(vacuum) or lambda
@@ -571,6 +632,14 @@ if z<10:
     DL = DA/(az*az)
 
     DL_Mpc = (c/H0)*DL
+    '''
+
+    # Options for cosmologies
+    # WMAP9, H0 = 69.3, Om0 = 0.286, Tcmb0 = 2.725, Neff = 3.04, m_nu = 0, Ob0 = 0.0463
+    # And many others...
+    # from astropy.cosmology import WMAP9
+    # cosmology.set_current(WMAP9)
+    DL_Mpc = Distance(z = z).Mpc
 
     #############################################
 
@@ -916,7 +985,10 @@ L1arr = []
 L2arr = []
 L1err_arr = []
 L2err_arr = []
-test_arr = []
+Lbb_full_arr = []
+Lbb_full_err_arr = []
+Lbb_opt_arr = []
+Lbb_opt_err_arr = []
 
 out1 = open(outdir+'/bol_'+sn+'_'+filters+'.txt','w')
 out2 = open(outdir+'/BB_params_'+sn+'_'+filters+'.txt','w')
@@ -924,32 +996,32 @@ out2 = open(outdir+'/BB_params_'+sn+'_'+filters+'.txt','w')
 out1.write('# ph\tLobs\terr\tL+BB\terr\t\n\n')
 
 
-if np.min(wlref)<3500:
-    out2.write('# ph\tT_bb\terr\tR_bb\terr\tT_opt\terr\tR_opt\terr\n\n')
+if np.min(wlref)<3000:
+    out2.write('# ph\tT_bb\terr\tR_bb\terr\tL_bb\terr\tT_opt\terr\tR_opt\terr\tL_opt\terr\n\n')
 else:
-    out2.write('# ph\tT_bb\terr\tR_bb\terr\n\n')
+    out2.write('# ph\tT_bb\terr\tR_bb\terr\tL_bb\terr\n\n')
 
 
-#Find luminosity by integrating blackbody fits. If UV coverage, fit separate BB below 3500A
+#Find luminosity by integrating blackbody fits. If UV coverage, fit separate BB below 3000A
 #Flux errors used as weights. L_err from T_err and R_err in curve_fit
 #Also do straight integration of observed fluxes for comparison
 
 print('\n######### Step 5: Fit blackbodies and integrate flux #########')
 
 
-sup = input('\n> Suppression factor for BB flux bluewards of '+filters[0]+'-band?\n  i.e. L_uv = L_uv(BB)/x [x=1] ')
-if not sup: sup = 1
+sup = input('\n> Suppression index for BB flux bluewards of 3000A?\n  i.e. L_uv(lam) = L_bb(lam)*(lam/3000)^x [x=0] ')
+if not sup: sup = 0
+sup = float(sup)
 
-sup = 1/np.float(sup)
 
 print('\n*** Fitting Blackbodies to SED ***')
 
 print('\n* Solid line = blackbody fit for flux extrapolation')
 
-if np.min(wlref)<3500:
+if np.min(wlref)<3000:
     print('* Dashed lines = separate fit to optical and UV for T and R estimates')
 
-if sup!=1:
+if sup!=0:
     print('* Dotted lines = UV flux with assumed blanketing')
 
 fscale = 4*np.pi*dist**2*zp[ref]*1e-11*10**(-0.4*min(lc[ref][:,1]))
@@ -976,27 +1048,26 @@ for i in range(len(phase)):
     BBparams, covar = curve_fit(bbody,wlref,flux,p0=(10000,1e15),sigma=ferr)
     T1 = BBparams[0]
     T1_err = np.sqrt(np.diag(covar))[0]
-    R1 = BBparams[1]
+    R1 = np.abs(BBparams[1])
     R1_err = np.sqrt(np.diag(covar))[1]
 #    co = np.abs(covar[0,1])
-
 
     plt.figure(2)
     plt.errorbar(wlref,flux-fscale*k,ferr,fmt='o',color=cols[filters[k%len(filters)]],label='%.1f' %ph)
     plt.plot(np.arange(1000,25000),bbody(np.arange(1000,25000),T1,R1)-fscale*k,color=cols[filters[k%len(filters)]],linestyle='-')
-    plt.plot(np.arange(1000,wlref[0]),bbody(np.arange(1000,wlref[0]),T1,R1)*sup-fscale*k,color=cols[filters[k%len(filters)]],linestyle=':')
+    plt.plot(np.arange(1000,wlref[0]),bbody(np.arange(1000,wlref[0]),T1,R1)*(np.arange(1000,wlref[0])/wlref[0])**sup-fscale*k,color=cols[filters[k%len(filters)]],linestyle=':')
 
-    L1 = itg.trapz(flux1,wlref1)
-
+    L1 = itg.trapz(flux1[np.argsort(wlref1)],wlref1[np.argsort(wlref1)])
     L1_err = np.sqrt(np.sum((bandwidths*ferr)**2))
 
     L1arr.append(L1)
     L1err_arr.append(L1_err)
 
-    test = 4*np.pi*R1**2*5.67e-5*T1**4
-    test_arr.append(test)
+    L1bb = 4*np.pi*R1**2*5.67e-5*T1**4
+    L1bb_err = L1bb*np.sqrt((2*R1_err/R1)**2+(4*T1_err/T1)**2)
 
-    Luv = itg.trapz(bbody(np.arange(1000,wlref[0]),T1,R1),np.arange(1000,wlref[0]))*sup
+
+    Luv = itg.trapz(bbody(np.arange(1000,wlref[0]),T1,R1),np.arange(1000,wlref[0])*(np.arange(1000,wlref[0])/wlref[0])**sup)
     Luv_err = Luv*np.sqrt((2*R1_err/R1)**2+(4*T1_err/T1)**2)
 
     Lnir = itg.trapz(bbody(np.arange(wlref[-1],25000),T1,R1),np.arange(wlref[-1],25000))
@@ -1005,11 +1076,14 @@ for i in range(len(phase)):
 
     if len(wlref[wlref<3000])>2:
         try:
-            BBparams, covar = curve_fit(bbody,wlref[wlref>3200],flux[wlref>3200],p0=(10000,1e15),sigma=ferr[wlref>3200])
+            BBparams, covar = curve_fit(bbody,wlref[wlref>3000],flux[wlref>3000],p0=(10000,1e15),sigma=ferr[wlref>3000])
             Topt = BBparams[0]
             Topt_err = np.sqrt(np.diag(covar))[0]
-            Ropt = BBparams[1]
+            Ropt = np.abs(BBparams[1])
             Ropt_err = np.sqrt(np.diag(covar))[1]
+
+            L2bb = 4*np.pi*Ropt**2*5.67e-5*Topt**4
+            L2bb_err = L2bb*np.sqrt((2*Ropt_err/Ropt)**2+(4*Topt_err/Topt)**2)
 
             Lnir = itg.trapz(bbody(np.arange(wlref[-1],25000),Topt,Ropt),np.arange(wlref[-1],25000))
             Lnir_err = Lnir*np.sqrt((2*Ropt_err/Ropt)**2+(4*Topt_err/Topt)**2)
@@ -1017,25 +1091,25 @@ for i in range(len(phase)):
             BBparams, covar = curve_fit(bbody,wlref[wlref<4000],flux[wlref<4000],p0=(10000,1e15),sigma=ferr[wlref<4000])
             Tuv = BBparams[0]
             Tuv_err = np.sqrt(np.diag(covar))[0]
-            Ruv = BBparams[1]
+            Ruv = np.abs(BBparams[1])
             Ruv_err = np.sqrt(np.diag(covar))[1]
 
-            Luv = itg.trapz(bbody(np.arange(1000,wlref[0]),Tuv,Ruv),np.arange(1000,wlref[0]))*sup
+            Luv = itg.trapz(bbody(np.arange(1000,wlref[0]),Tuv,Ruv),np.arange(1000,wlref[0]))
             Luv_err = Luv*np.sqrt((2*Ruv_err/Ruv)**2+(4*Tuv_err/Tuv)**2)
 
-            out2.write('%.2f\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\n' %(ph,T1,T1_err,R1,R1_err,Topt,Topt_err,Ropt,Ropt_err))
+            out2.write('%.2f\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\n' %(ph,T1,T1_err,R1,R1_err,L1bb,L1bb_err,Topt,Topt_err,Ropt,Ropt_err,L2bb,L2bb_err))
 
     #            print '*** Fitting UV and opt-NIR separately'
 
             plt.figure(2)
-            plt.plot(np.arange(3600,25000),bbody(np.arange(3600,25000),Topt,Ropt)-fscale*k,color=cols[filters[k%len(filters)]],linestyle='--',linewidth=1.5)
+            plt.plot(np.arange(3200,25000),bbody(np.arange(3200,25000),Topt,Ropt)-fscale*k,color=cols[filters[k%len(filters)]],linestyle='--',linewidth=1.5)
             plt.plot(np.arange(1000,3600),bbody(np.arange(1000,3600),Tuv,Ruv)-fscale*k,color=cols[filters[k%len(filters)]],linestyle='-.',linewidth=1.5)
 
         except:
-            out2.write('%.2f\t%.2e\t%.2e\t%.2e\t%.2e\n' %(ph,T1,T1_err,R1,R1_err))
+            out2.write('%.2f\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\n' %(ph,T1,T1_err,R1,R1_err,L1bb,L1bb_err))
 
     else:
-        out2.write('%.2f\t%.2e\t%.2e\t%.2e\t%.2e\n' %(ph,T1,T1_err,R1,R1_err))
+        out2.write('%.2f\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\n' %(ph,T1,T1_err,R1,R1_err,L1bb,L1bb_err))
 
 
     L2 = Luv + itg.trapz(flux,wlref) + Lnir
@@ -1101,6 +1175,7 @@ plt.show()
 
 
 out1.write('\n#KEY\n#Lobs = integrate observed fluxes with no BB fit\n#L+BB = observed flux + BB fit extrapolation')
+out2.write('\n#Lbb = luminosity from Stefan-Boltzman; Lopt = same but using Topt and Ropt')
 
 out1.close()
 out2.close()
