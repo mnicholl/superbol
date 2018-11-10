@@ -6,25 +6,42 @@ superbol.py3  (Python 3 version)
 
 Versions
 ------------
-Version 1.9 : Only do separate UV fit if > 2 UV filters (MN)
-Version 1.8 : New feature! Can choose to shift SED to rest-frame for data with no K-correction (MN)
-Version 1.7 : Improved handling of errors (MN)
-Version 1.6 : Tidied up separate blackbody integrations in UV/NIR (MN)
-Version 1.5 : Specifying files on command line now COMMA separated to handle 2-digit indices (MN)
-Version 1.4 : Fixed bug in blackbody formula - missing factor of pi led to overestimate of radius (MN)
-Version 1.3 : Added GALEX NUV and FUV bands in AB system (MN)
-Version 1.2 : Swift effective wavelengths now match Poole et al 2008 (update by MN)
-Version 1.1 : Origin and veracity of all zeropoints checked by SJS. Comments added, with more
-              details in superbol.man file. Archived this version in /home/sne/soft (2016-Sept-21)
-Version 1.0 : Written by Matt Nicholl at QUB (2015)
+    Version 0.14: Fixed bug where having two reference epochs the same broke manual interpolation
+    Version 0.13: Give user control over whether to fit UV separately, improve commenting and output files, change min integration wavelength to 100A (MN)
+    Version 0.12: Change UV suppression to power law (lambda/lambda_max)^x following Nicholl, Guillochon & Berger 2017 (MN)
+    Version 0.11: Added ATLAS c and o filters (MN)
+    Version 0.10: Added Gaia G filter. Automatically sort wavelength array when calculating Luminosity. Updated constants in bbody. Added option to change cosmologies with astropy. (SG)
+    Version 0.9 : Only do separate UV fit if > 2 UV filters (MN)
+    Version 0.8 : New feature! Can choose to shift SED to rest-frame for data with no K-correction (MN)
+    Version 0.7 : Improved handling of errors (MN)
+    Version 0.6 : Tidied up separate blackbody integrations in UV/NIR (MN)
+    Version 0.5 : Specifying files on command line now COMMA separated to handle 2-digit indices (MN)
+    Version 0.4 : Fixed bug in blackbody formula - missing factor of pi led to overestimate of radius (MN)
+    Version 0.3 : Added GALEX NUV and FUV bands in AB system (MN)
+    Version 0.2 : Swift effective wavelengths now match Poole et al 2008 (update by MN)
+    Version 0.1 : Origin and veracity of all zeropoints checked by SJS. Comments added, with more details in superbol.man file. Archived this version in /home/sne/soft
+    Version 0   : Written by Matt Nicholl (QUB), 2015
+
+NOTE: pre-release version numbers have been downgraded from 1.x->0.x from .14 onwards. 
 
 Python program to calculate a bolometric luminosity from a set of input magnitudes which can be
-apparent mags or absolute mags. The program does not do k-corrections or extinction corrections,
-so these must be done before running and the values in the input files should include these corrections.
+apparent mags or absolute mags. The program does not do k-corrections or extinction corrections.
+K-correction not strictly required, if user chooses to shift SED to rest-frame before integration.
+Extinction corrections should be applied before use (for now).
+
+    To-do:
+        - set error floor for interpolation to ref band error
+        - make compatible with other inputs (Open Supernova Catalog, output from psf.py)
+        - include extinction correction
 
 Requirements and usage:
-Needs numpy, scipy and matplotlib
-/home/user> python superbol.py
+Needs numpy, scipy, matplotlib (and astropy)
+
+To run code:
+ > python superbol.py
+
+Should run in directory with photometry data. User prompted at all steps 
+(goal: no prior knowledge of superbol required to use it!)
 
 The user is prompted for the input files, which should be called SNname_filters.txt,
 eg PTF12dam_ugriz.txt, LSQ14bdq_JHK.dat
@@ -49,7 +66,46 @@ code will detect presence of interpolated light curves so you can
 choose to skip polynomial fits if you want to rerun with fewer filters
 in the integration
 
-Best practice: run once with ALL available filters, and fit missing
+Output of each run of the code will contain all the filters used in the integration in the filenames
+
+
+Steps:
+ - Find files associated with SN and determine available filters and data
+ - Correct for time dilation, distance, and approximate K-correction if desired
+ - Map light curves in each filter to a common set of times 
+    (typically defined by the filter with most observations)
+    - Interpolation options: linear between neighbouring epochs or polynomial fits 
+       (user determines order of polynomial interactively)
+    - Extrapolation: using polynomials or assuming constant colour with respect to reference filter. 
+        Large extrapolations = large uncertainties!
+    - Save interpolated light curves for reproducability!
+ - Fit blackbodies to SED at each epoch (most SNe can be reasonably approximated by blackbody above ~3000 A). 
+    In UV, user can choose to:
+    - fit SED over all wavelengths with single blackbody
+    - fit separate blackbodies to optical and UV (if UV data exist). 
+        Optical fit gives better temperature estimate than single BB. 
+         UV fit used only to extrapolate flux for bolometric luminosity.
+    - use a simple prescription for line blanketing at UV wavelengths, 
+        defined as L_uv(lambda < cutoff) = L_bb(lambda)*(lambda/cutoff)^x, where x is chosen by user. 
+        Cutoff is either set to bluest available band, or if bluest band is >3000A, cutoff = 3000A
+- Numerically integrate observed SEDs, and account for missing UV and NIR flux using blackbody extrapolations. 
+    NIR is easy, UV uses options described above
+- Save outputs:
+    - interpolated_lcs_<SN>_<filters>.txt = multicolour light curves mapped to common times. 
+        Footer gives methods of interpolation and extrapolation. 
+         If file exists, can be read in future to skip interpolating next time.
+    - bol_<SN>_<filters>.txt = main output. 
+        Contains pseudobolometric light curve, integrated trapezoidally, 
+        and bolometric light curve including the additional BB corrections, and errors on each. 
+        Footer gives filters and method of UV fitting.
+    - logL_obs_<SN>_<filters>.txt = same pseudobolometric (observed) light curve, in convenient log form
+    - logL_obs_<SN>_<filters>.txt = light curve with the BB corrections, in convenient log form
+    - BB_params_<SN>_<filters>.txt = fit parameters for blackbodies: T, R and inferred L from Stefan-Boltzmann law 
+        (can compare with direct integration method). If separate optical/UV fit, gives both T_bb (fit to all data) 
+        and T_opt (fit only to data >3000 A)
+
+
+Recommended practice: run once with ALL available filters, and fit missing
 data as best you can. Then re-run choosing only the well-observed
 filters for the integration. You can compare results and decide for
 yourself whether you have more belief in the "integrate all filters
@@ -59,8 +115,9 @@ method.
 
 The user will be prompted for redshift or distance modulus to allow
 calculation of the luminosity. If a redshift is entered then a
-standard cosmology is employed (from the python version of N. Wright's
-Cosmocalc) to determine distance modulus.
+standard cosmology is employed to determine distance modulus.
+Default cosmology module has been updated to use astropy, but Ned Wright's
+cosmocalc is also available (just uncomment that section in code)
 
 
 AB system flux zeropoints (used for SDSS-like filters)
