@@ -1,9 +1,12 @@
 #!/usr/bin/env python
 
+version = '0.14'
+
 '''
     SUPERBOL: Supernova Bolometric Light Curves
     Written by Matt Nicholl, 2015
 
+    Version 0.14: Fixed bug where having two reference epochs the same broke manual interpolation
     Version 0.13: Give user control over whether to fit UV separately, improve commenting and output files, change min integration wavelength to 100A (MN)
     Version 0.12: Change UV suppression to power law (lambda/lambda_max)^x following Nicholl, Guillochon & Berger 2017 (MN)
     Version 0.11: Added ATLAS c and o filters (MN)
@@ -26,7 +29,8 @@
     Requirements and usage:
     Needs numpy, scipy and matplotlib
 
-    KNOWN BUG: interpolator breaks if two observations in reference band have identical times!
+    To-do: set error floor for interpolation to ref band error
+
 
     Input files should be called SNname_filters.EXT, eg PTF12dam_ugriz.txt, LSQ14bdq_JHK.dat, etc
     Can have multiple files per SN with different filters in each
@@ -78,7 +82,7 @@ from astropy.coordinates import Distance
 
 
 # print 'cool' logo
-print('\n    * * * * * * * * * * * * * * * * * * * * *\n    *                                       *\n    *        Welcome to `SUPER BOL`!        *\n    *   SUPernova BOLometric light curves   *\n    *                                       *\n    *                ______                 *\n    *               {\   */}                *\n    *                 \__/                  *\n    *                  ||                   *\n    *                 ====                  *\n    *                                       *\n    *           M. Nicholl (V1.13)           *\n    *                                       *\n    * * * * * * * * * * * * * * * * * * * * *\n\n')
+print('\n    * * * * * * * * * * * * * * * * * * * * *\n    *                                       *\n    *        Welcome to `SUPER BOL`!        *\n    *   SUPernova BOLometric light curves   *\n    *                                       *\n    *                ______                 *\n    *               {\   */}                *\n    *                 \__/                  *\n    *                  ||                   *\n    *                 ====                  *\n    *                                       *\n    *          M. Nicholl (V'+version+')           *\n    *                                       *\n    * * * * * * * * * * * * * * * * * * * * *\n\n')
 
 # interactive plotting
 plt.ion()
@@ -247,7 +251,9 @@ if do1 == 'y':
         for i in range(len(files)):
             print('  ', i, ':', files[i])
 
-        use = input('\n> Use interpolated LC? (e.g. 0 for file 0, or n for no) [0]   ')
+        use = input('\n> Use interpolated LC? (e.g. 0,2 for files 0 and 2, or n for no) [0]\n (Warning: using multiple interpolation files can cause problems unless times match!)   ')
+        # Default is to read in the first interpolation file
+        # Multiple interpolations can be read using commas, BUT if time axes don't match then the phases can end up incorrectly defined for some bands!!!
         if not use: use1.append(0)
 
         if use!='n':
@@ -255,9 +261,6 @@ if do1 == 'y':
             useInt = 'y'
             if len(use)>0:
                 for i in use.split(','):
-                    use1.append(i)
-            else:
-                for i in range(len(files)):
                     use1.append(i)
         else: print('\n* Not using interpolated data')
 
@@ -392,7 +395,7 @@ plt.clf()
 
 # Plot all light curves on same axes
 for i in filters:
-    plt.errorbar(lc[i][:,0],lc[i][:,1],lc[i][:,2],fmt='o',color=cols[i],label=i)
+    plt.errorbar(lc[i][:,0],lc[i][:,1],lc[i][:,2],fmt='o-',color=cols[i],label=i)
 
 plt.gca().invert_yaxis()
 plt.xlabel('Days')
@@ -831,11 +834,12 @@ if useInt!='y':
 
                     mag_int = []
 
-                    for k in lc[i]:
+                    for k in lc[ref]:
                         # Check each light curve point against each reference time
-                        if k[0] in lc[ref][:,0]:
-                            # If match, add that point to interpolated light curve
-                            mag_int.append(k)
+                        # If match, add that point to interpolated light curve
+                        k1 = np.where(lc[i][:,0]==k[0])
+                        if len(k1[0])>0:
+                            mag_int.append(lc[i][k1][0])
 
                     # Convert matches to numpy array (just to compare with reference array)
                     tmp_arr = np.array(mag_int)
@@ -972,7 +976,7 @@ if useInt!='y':
     plt.figure(1)
     plt.clf()
     for i in filters:
-        plt.errorbar(lc_int[i][:,0],lc_int[i][:,1],lc_int[i][:,2],fmt='o',color=cols[i],label=i)
+        plt.errorbar(lc_int[i][:,0],lc_int[i][:,1],lc_int[i][:,2],fmt='o-',color=cols[i],label=i)
     plt.gca().invert_yaxis()
     plt.xlabel('Days from '+ref+'-band maximum')
     plt.ylabel('Magnitude')
@@ -1127,8 +1131,8 @@ for i in range(len(phase)):
     # get date
     ph = phase[i]
     # Get list of mags and errors in all filters at each epoch - start with blank arrays to add all filters
-    mags = np.zeros(len(lc_int))
-    errs = np.zeros(len(lc_int))
+    mags = np.zeros(len(filters))
+    errs = np.zeros(len(filters))
     for j in range(len(filters)):
         # Loop through filters and populate SED tables with interpolated light curves
         mags[j] = lc_int[filters[j]][i,1]
