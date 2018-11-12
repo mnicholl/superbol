@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+version = '0.1'
+
 '''
     PSF: PHOTOMETRY SANS FRUSTRATION
 
@@ -10,10 +12,12 @@
     Needs pyraf, pyfits, numpy, and matplotlib (tested with Ureka and
     Anaconda python installations)
 
+    Currently only available in python 2 for iraf compatibility
+
     Run in directory with image files in FITS format.
 
-    Type image names separated by spaces. If no names given, assumes you
-    want to do photometry on every image in directory.
+    Use -i flag to specify image names separated by spaces. If no names given,
+    assumes you want to do photometry on every image in directory.
 
     File with SN coordinates must exist in same directory or parent
     directory, and should be named *_coords.txt
@@ -32,6 +36,37 @@
     subtraction, and return the apparent magnitude from both PSF and aperture
     photometry
 
+    Run with python psf.py <flags> (see help message with psf.py --help)
+
+    Outputs:
+
+    PSF_phot_X.txt (where X is an integer that increases every time code is run,
+        to avoid overwriting results)
+        This is the primary output of PSF
+        Format of text file is:
+        image  filter  mjd  PSFmag  err  APmag  err  comments
+        - Row exists for each input image used in run
+        - PSFmag is from PSF fitting, APmag is from simple aperture photometry
+        using aperture size specified with --ap (default 10 pixel radius)
+        - comment allows user to specify if e.g. PSF fit looked unreliable
+    PSF_output_X/ (where X is same integer as for text file) has additional
+        info useful for double-checking results
+        For each input file, directory contains:
+        - IMAGENAME_psf_stars.txt : list of stars used to build PSF
+            Number corresponds to position in input file (_seq.txt)
+        - IMAGENAME_seqMags.txt : instrumental magnitudes of sequence stars
+        - zeropoints.txt : instrumental zeropoint for each input image
+        - zp_list.txt : zeropoints inferred from all sequence stars
+            (only for last image processed)
+        - IMAGENAME_SN_ap.txt : aperture instrumental mag of target
+        - IMAGENAME_SN_dao.txt : Daophot PSF-fitting instrumental mag of target
+        - IMAGENAME_psf.fits : Postage stamp image of PSF from iraf task seepsf
+        - IMAGENAME.psf.?.fits : Full results of PSF fits. May be more than
+            one per image if multiple iterations of PSF fitting were needed
+        - IMAGENAME.mag.? : Iraf phot logs for sequence stars and for target
+
+    NEED TO FULLY DOCUMENT
+
     '''
 
 import numpy as np
@@ -49,7 +84,7 @@ import matplotlib.pyplot as plt
 from collections import OrderedDict
 from mpl_toolkits.mplot3d import Axes3D
 import argparse
-
+from matplotlib.patches import Circle
 
 ####### Parameters to vary if things aren't going well: #####################
 #
@@ -68,6 +103,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--ap', dest='aprad', default=10, type=int,
                     help='Radius for aperture/PSF phot.')
 
+parser.add_argument('--sky', dest='skyrad', default=10, type=int,
+                    help='Width of annulus for sky background.')
+
 parser.add_argument('--npsf', dest='nPSF', default=10, type=int,
                     help='Number of PSF stars.')
 
@@ -81,23 +119,36 @@ parser.add_argument('--var', dest='varOrd', default=0, type=int,
                     help='Order for PSF model.')
 
 parser.add_argument('--sig', dest='sigClip', default=1, type=int,
-                    help='Radius for aperture/PSF phot.')
+                    help='Sigma clipping for rejecting sequence stars.')
 
-parser.add_argument('-i', dest='file_to_reduce', default='', nargs='+',
+parser.add_argument('--ims','-i', dest='file_to_reduce', default='', nargs='+',
                     help='List of files to reduce. Accepts wildcards or '
                     'space-delimited list.')
+
+parser.add_argument('--high', dest='z2', default=1, type=float,
+                    help='Colour scaling for zoomed images; upper bound is '
+                    'this value times the standard deviation of the counts.')
+
+parser.add_argument('--low', dest='z1', default=1, type=float,
+                    help='Colour scaling for zoomed images; lower bound is '
+                    'this value times the standard deviation of the counts.')
+
+parser.add_argument('--keepsub', dest='keep_sub', default=False, action='store_true',
+                    help='Do not delete residual images during clean-up ')
 
 
 args = parser.parse_args()
 
 
 aprad = args.aprad
+skyrad = args.skyrad
 nPSF = args.nPSF
 recen_rad_stars = args.recen_rad_stars
 recen_rad_sn = args.recen_rad_sn
 varOrd = args.varOrd
 sigClip = args.sigClip
-
+z1 = args.z1
+z2 = args.z2
 
 ims = [i for i in args.file_to_reduce]
 
@@ -109,10 +160,10 @@ if len(ims) == 0:
 ##################################################
 
 iraf.centerpars.calgo='centroid'
-#iraf.centerpars.cbox=recen_rad_stars
+iraf.centerpars.cmaxiter=50
 iraf.fitskypars.salgo='centroid'
 iraf.fitskypars.annulus=aprad
-iraf.fitskypars.dannulus=5
+iraf.fitskypars.dannulus=skyrad
 iraf.photpars.apertures=aprad
 iraf.photpars.zmag=0
 iraf.datapars.sigma='INDEF'
@@ -124,7 +175,7 @@ daophot.daopars.psfrad=aprad
 daophot.daopars.fitrad=10
 daophot.daopars.matchrad=3
 daophot.daopars.sannu=aprad
-daophot.daopars.wsann=5
+daophot.daopars.wsann=skyrad
 daophot.daopars.varorder=varOrd
 daophot.datapars.datamin='INDEF'
 daophot.datapars.datamax='INDEF'
@@ -139,11 +190,11 @@ daophot.daopars.fitsky='yes'
 
 # Try to match header keyword to a known filter automatically:
 
-filtSyn = {'u':['u','SDSS-U','up','up1','U640'],
-           'g':['g','SDSS-G','gp','gp1','g782'],
-           'r':['r','SDSS-R','rp','rp1','r784'],
-           'i':['i','SDSS-I','ip','ip1','i705'],
-           'z':['z','SDSS-Z','zp','zp1','z623','zs'],
+filtSyn = {'u':['u','SDSS-U','up','up1','U640','F336W','Sloan_u','u_Sloan'],
+           'g':['g','SDSS-G','gp','gp1','g782','F475W','g.00000','Sloan_g','g_Sloan'],
+           'r':['r','SDSS-R','rp','rp1','r784','F625W','r.00000','Sloan_r','r_Sloan'],
+           'i':['i','SDSS-I','ip','ip1','i705','F775W','i.00000','Sloan_i','i_Sloan'],
+           'z':['z','SDSS-Z','zp','zp1','z623','zs', 'F850LP','z.00000','Sloan_z','z_Sloan'],
            'J':['J'],
            'H':['H'],
            'K':['K','Ks'],
@@ -191,6 +242,8 @@ for i in glob.glob('*_psf_stars.txt'):
 
 
 
+print('#################################################\n#                                               #\n#  Welcome to PSF: Photometry Sans Frustration  #\n#                    (V'+version+')                     #\n#        Written by Matt Nicholl (2015)         #\n#                                               #\n#################################################')
+
 
 
 outdir = 'PSF_output_'+str(len(glob.glob('PSF_phot_*')))
@@ -207,7 +260,7 @@ outFile.write('#image\tfilter\tmjd\tPSFmag\terr\tAPmag\terr\tcomments')
 
 
 
-plt.figure(1,(15,9))
+plt.figure(1,(15,8))
 
 plt.ion()
 
@@ -270,6 +323,8 @@ for i in range(len(seqHead)-2):
 #### BEGIN LOOP OVER IMAGES ####
 
 
+x_sh_1 = 0
+y_sh_1 = 0
 
 for image in ims:
 
@@ -359,11 +414,11 @@ for image in ims:
         header = im[0].header
 
         ax1.imshow(data, origin='lower',cmap='gray',
-                            vmin=np.mean(data[len(data)/2/2:3*len(data)/2/2,
+                            vmin=np.median(data[len(data)/2/2:3*len(data)/2/2,
                                 len(data)/2/2:3*len(data)/2/2])-
                                 np.std(data[len(data)/2/2:3*len(data)/2/2,
                                 len(data)/2/2:3*len(data)/2/2])*0.5,
-                            vmax=np.mean(data[len(data)/2/2:3*len(data)/2/2,
+                            vmax=np.median(data[len(data)/2/2:3*len(data)/2/2,
                                 len(data)/2/2:3*len(data)/2/2])+
                                 np.std(data[len(data)/2/2:3*len(data)/2/2,
                                 len(data)/2/2:3*len(data)/2/2]))
@@ -410,7 +465,7 @@ for image in ims:
 
 
     for j in range(len(co)):
-       ax1.text(co[j,0]+20,co[j,1]-20,str(j+1))
+       ax1.text(co[j,0]+20,co[j,1]-20,str(j+1),color='cornflowerblue')
 
 
 
@@ -430,13 +485,15 @@ for image in ims:
 ########### Centering
 
     # Manual shifts:
-    x_sh = raw_input('\n> Add approx pixel shift in x? [0]  ')
-    if not x_sh: x_sh = 0
+    x_sh = raw_input('\n> Add approx pixel shift in x? ['+str(x_sh_1)+']  ')
+    if not x_sh: x_sh = x_sh_1
     x_sh = int(x_sh)
+    x_sh_1 = x_sh
 
-    y_sh = raw_input('\n> Add approx pixel shift in y? [0]  ')
-    if not y_sh: y_sh = 0
+    y_sh = raw_input('\n> Add approx pixel shift in y? ['+str(y_sh_1)+']  ')
+    if not y_sh: y_sh = y_sh_1
     y_sh = int(y_sh)
+    y_sh_1 = y_sh
 
     shutil.copy(image+'_pix.fits',image+'_orig_pix.fits')
 
@@ -475,7 +532,7 @@ for image in ims:
 
     happy = 'n'
     j = 1
-    rmStar = 1000
+    rmStar = 999
     while happy!='y':
 
         daophot.pselect(infiles=image+'.pst.'+str(j),
@@ -588,28 +645,31 @@ for image in ims:
         seqIm = seqIm1[:,1]
         seqErr = seqIm1[:,2]
 
+        zpList1 = seqMags[filtername][mask]-seqIm
 
-        zp1 = np.mean(seqMags[filtername][mask]-seqIm)
-        errzp1 = np.std(seqMags[filtername][mask]-seqIm)
+        zp1 = np.mean(zpList1)
+        errzp1 = np.std(zpList1)
 
         print 'Initial zeropoint =  %.3f +/- %.3f\n' %(zp1,errzp1)
 
-
+        np.savetxt(os.path.join(outdir,'zp_list.txt'),zip(mask+1,zpList1),
+        fmt='%d\t%.3f')
 
         checkMags = np.abs(seqIm+zp1-seqMags[filtername][mask])<errzp1*sigClip
 
         print 'Rejecting stars from ZP: '
-        print np.arange(len(seqDat))[~checkMags]+1
+        print seqIm1[:,0][~checkMags]
         print 'ZPs:'
         print seqMags[filtername][mask][~checkMags]-seqIm[~checkMags]
 
+        zpList = seqMags[filtername][mask][checkMags]-seqIm[checkMags]
 
-        ZP = np.mean(seqMags[filtername][mask][checkMags]-seqIm[checkMags])
-        errZP = np.std(seqMags[filtername][mask][checkMags]-seqIm[checkMags])
+        ZP = np.mean(zpList)
+        errZP = np.std(zpList)
 
         print 'Zeropoint = %.3f +/- %.3f\n' %(ZP,errZP)
 
-        ZPfile.write(image+'\t'+filtername+'\t%.2f\t%.2f\t%.2f' %(mjd,ZP,errZP))
+        ZPfile.write(image+'\t'+filtername+'\t%.2f\t%.2f\t%.2f\n' %(mjd,ZP,errZP))
 
 
 
@@ -646,46 +706,63 @@ for image in ims:
 
         ax4 = plt.subplot2grid((2,4),(1,2))
 
+
         ax4.imshow(data, origin='lower',cmap='gray',
-                    vmin=np.mean(data[SNco[0]-100:SNco[0]+100,
-                                SNco[1]-100:SNco[1]+100])-
-                            np.std(data[SNco[0]-100:SNco[0]+100,
-                                SNco[1]-100:SNco[1]+100]),
-                    vmax=np.mean(data[SNco[0]-100:SNco[0]+100,
-                                SNco[1]-100:SNco[1]+100])+
-                            np.std(data[SNco[0]-100:SNco[0]+100,
-                                SNco[1]-100:SNco[1]+100]))
+                            vmin=np.median(data[len(data)/2/2:3*len(data)/2/2,
+                                len(data)/2/2:3*len(data)/2/2])-
+                                np.std(data[len(data)/2/2:3*len(data)/2/2,
+                                len(data)/2/2:3*len(data)/2/2])*0.5,
+                            vmax=np.median(data[len(data)/2/2:3*len(data)/2/2,
+                                len(data)/2/2:3*len(data)/2/2])+
+                                np.std(data[len(data)/2/2:3*len(data)/2/2,
+                                len(data)/2/2:3*len(data)/2/2]))
 
 
-        ax4.set_xlim(SNco[0]-100,SNco[0]+100)
-        ax4.set_ylim(SNco[1]-100,SNco[1]+100)
+        ax4.set_xlim(SNco[0]-(aprad+skyrad),SNco[0]+(aprad+skyrad))
+        ax4.set_ylim(SNco[1]-(aprad+skyrad),SNco[1]+(aprad+skyrad))
 
         ax4.get_yaxis().set_visible(False)
         ax4.get_xaxis().set_visible(False)
 
         ax4.set_title('Supernova')
 
+        apcircle = Circle((SNco[0], SNco[1]), aprad, facecolor='none',
+                edgecolor='r', linewidth=3, alpha=1)
+        ax4.add_patch(apcircle)
+
+        skycircle = Circle((SNco[0], SNco[1]), aprad, facecolor='none',
+                edgecolor='r', linewidth=3, alpha=1)
+        ax4.add_patch(skycircle)
+
 
         ax5 = plt.subplot2grid((2,4),(1,3))
 
         ax5.imshow(sub, origin='lower',cmap='gray',
-                    vmin=np.mean(sub[SNco[0]-100:SNco[0]+100,
-                                SNco[1]-100:SNco[1]+100])-
-                            np.std(sub[SNco[0]-100:SNco[0]+100,
-                                SNco[1]-100:SNco[1]+100]),
-                    vmax=np.mean(sub[SNco[0]-100:SNco[0]+100,
-                                SNco[1]-100:SNco[1]+100])+
-                            np.std(sub[SNco[0]-100:SNco[0]+100,
-                                SNco[1]-100:SNco[1]+100]))
+                            vmin=np.median(data[len(data)/2/2:3*len(data)/2/2,
+                                len(data)/2/2:3*len(data)/2/2])-
+                                np.std(data[len(data)/2/2:3*len(data)/2/2,
+                                len(data)/2/2:3*len(data)/2/2])*0.5,
+                            vmax=np.median(data[len(data)/2/2:3*len(data)/2/2,
+                                len(data)/2/2:3*len(data)/2/2])+
+                                np.std(data[len(data)/2/2:3*len(data)/2/2,
+                                len(data)/2/2:3*len(data)/2/2]))
 
 
-        ax5.set_xlim(SNco[0]-100,SNco[0]+100)
-        ax5.set_ylim(SNco[1]-100,SNco[1]+100)
+        ax5.set_xlim(SNco[0]-(aprad+skyrad),SNco[0]+(aprad+skyrad))
+        ax5.set_ylim(SNco[1]-(aprad+skyrad),SNco[1]+(aprad+skyrad))
 
         ax5.get_yaxis().set_visible(False)
         ax5.get_xaxis().set_visible(False)
 
         ax5.set_title('Subtracted image')
+
+        apcircle = Circle((SNco[0], SNco[1]), aprad, facecolor='none',
+                edgecolor='r', linewidth=3, alpha=1)
+        ax5.add_patch(apcircle)
+
+        skycircle = Circle((SNco[0], SNco[1]), aprad, facecolor='none',
+                edgecolor='r', linewidth=3, alpha=1)
+        ax5.add_patch(skycircle)
 
         plt.draw()
 
@@ -784,11 +861,18 @@ for i in glob.glob('*.mag.*'):
 for i in glob.glob('*.psf.*'):
     shutil.copy(i,outdir)
 
+# for i in glob.glob('*.sub.*'):
+#     shutil.copy(i,outdir)
+
 for i in glob.glob('*.mag.*'):
     os.remove(i)
 
 for i in glob.glob('*.psf.*'):
     os.remove(i)
+
+if not args.keep_sub:
+    for i in glob.glob('*.sub.*'):
+        os.remove(i)
 
 
 for i in glob.glob('*.als.*'):
@@ -809,7 +893,7 @@ for i in glob.glob('*pix*fits'):
 for i in glob.glob('*_psf_stars.txt'):
     os.remove(i)
 
-for i in glob.glob('*.sub.*'):
+for i in glob.glob('coords'):
     os.remove(i)
 
 
