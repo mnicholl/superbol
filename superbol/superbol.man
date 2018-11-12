@@ -1,12 +1,15 @@
 Superbol manual
 
 
-superbol.py
-superbol.py3  (Python 3 version)
+superbol.py  (Python 3 version, preferred)
+superbol-py2.py (Python 2 version)
+
+Maintenance and updates will prioritise python 3 version, but python 2 version also appears to work.
 
 Versions
 ------------
-    Version 0.14: Fixed bug where having two reference epochs the same broke manual interpolation
+    Version 0.15: Plot temperature and radius, other small figure adjustments (MN)
+    Version 0.14: Fixed bug where having two reference epochs the same broke manual interpolation (MN)
     Version 0.13: Give user control over whether to fit UV separately, improve commenting and output files, change min integration wavelength to 100A (MN)
     Version 0.12: Change UV suppression to power law (lambda/lambda_max)^x following Nicholl, Guillochon & Berger 2017 (MN)
     Version 0.11: Added ATLAS c and o filters (MN)
