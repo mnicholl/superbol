@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 
-version = '0.14'
+version = '0.15'
 
 '''
     SUPERBOL: Supernova Bolometric Light Curves
     Written by Matt Nicholl, 2015
 
-    Version 0.14: Fixed bug where having two reference epochs the same broke manual interpolation
+    Version 0.15: Plot temperature and radius, other small figure adjustments (MN)
+    Version 0.14: Fixed bug where having two reference epochs the same broke manual interpolation (MN)
     Version 0.13: Give user control over whether to fit UV separately, improve commenting and output files, change min integration wavelength to 100A (MN)
     Version 0.12: Change UV suppression to power law (lambda/lambda_max)^x following Nicholl, Guillochon & Berger 2017 (MN)
     Version 0.11: Added ATLAS c and o filters (MN)
@@ -29,8 +30,10 @@ version = '0.14'
     Requirements and usage:
     Needs numpy, scipy and matplotlib
 
-    To-do: set error floor for interpolation to ref band error
-
+    To-do:
+        - set error floor for interpolation to ref band error
+        - make compatible with other inputs (Open Supernova Catalog, output from psf.py)
+        - include extinction correction
 
     Input files should be called SNname_filters.EXT, eg PTF12dam_ugriz.txt, LSQ14bdq_JHK.dat, etc
     Can have multiple files per SN with different filters in each
@@ -77,8 +80,8 @@ from scipy.interpolate import interpolate as interp
 import glob
 import sys
 import os
+# If you don't have astropy, can comment this out, and uncomment cosmocalc routine
 from astropy.coordinates import Distance
-#import time
 
 
 # print 'cool' logo
@@ -87,6 +90,7 @@ print('\n    * * * * * * * * * * * * * * * * * * * * *\n    *                   
 # interactive plotting
 plt.ion()
 
+# Define some functions:
 def bbody(lam,T,R):
     '''
     Calculate the corresponding blackbody radiance for a set
@@ -129,7 +133,6 @@ def bbody(lam,T,R):
     return Radiance
 
 
-
 def easyint(x,y,err,xref,yref):
     '''
     Adapt scipy interpolation to include extrapolation for filters missing early/late data
@@ -154,6 +157,68 @@ def easyint(x,y,err,xref,yref):
     errout[xref>max(x)] = np.sqrt((xref[xref>max(x)] - max(x))**2/1.e4 + np.mean(err)**2)
 
     return yout,errout
+
+
+def cosmocalc(z):
+    ################# cosmocalc by N. Wright ##################
+
+    '''
+    This was used in an older version of superbol, but can still
+    be used in place of astropy if desired - just uncomment cosmocalc in step 3
+    '''
+    # initialize constants
+    H0 = 70                         # Hubble constant
+    WM = 0.27                        # Omega(matter)
+    WV = 1.0 - WM - 0.4165/(H0*H0)  # Omega(vacuum) or lambda
+
+    WR = 0.        # Omega(radiation)
+    WK = 0.        # Omega curvaturve = 1-Omega(total)
+    c = 299792.458 # velocity of light in km/sec
+    Tyr = 977.8    # coefficent for converting 1/H into Gyr
+    DTT = 0.0      # time from z to now in units of 1/H0
+    DCMR = 0.0     # comoving radial distance in units of c/H0
+    DA = 0.0       # angular size distance
+    DL = 0.0       # luminosity distance
+    DL_Mpc = 0.0
+    a = 1.0        # 1/(1+z), the scale factor of the Universe
+    az = 0.5       # 1/(1+z(object))
+
+    h = H0/100.
+    WR = 4.165E-5/(h*h)   # includes 3 massless neutrino species, T0 = 2.72528
+    WK = 1-WM-WR-WV
+    az = 1.0/(1+1.0*z)
+    n=1000         # number of points in integrals
+
+
+    for i in range(n):
+        a = az+(1-az)*(i+0.5)/n
+        adot = np.sqrt(WK+(WM/a)+(WR/(a*a))+(WV*a*a))
+        DTT = DTT + 1./adot
+        DCMR = DCMR + 1./(a*adot)
+
+    DTT = (1.-az)*DTT/n
+    DCMR = (1.-az)*DCMR/n
+
+    ratio = 1.00
+    x = np.sqrt(abs(WK))*DCMR
+    if x > 0.1:
+        if WK > 0:
+            ratio =  0.5*(np.exp(x)-np.exp(-x))/x
+        else:
+            ratio = np.sin(x)/x
+    else:
+        y = x*x
+        if WK < 0: y = -y
+        ratio = 1. + y/6. + y*y/120.
+
+    DCMT = ratio*DCMR
+    DA = az*DCMT
+
+    DL = DA/(az*az)
+
+    DL_Mpc = (c/H0)*DL
+
+    return DL_Mpc
 
 
 # Filter information
@@ -390,17 +455,18 @@ for i in filts2:
 print('\n######### Step 2: reference band for phase info ##########')
 
 
-plt.figure(1,(10,8))
+plt.figure(1,(8,6))
 plt.clf()
 
 # Plot all light curves on same axes
 for i in filters:
-    plt.errorbar(lc[i][:,0],lc[i][:,1],lc[i][:,2],fmt='o-',color=cols[i],label=i)
+    plt.errorbar(lc[i][:,0],lc[i][:,1],lc[i][:,2],fmt='o',color=cols[i],label=i)
 
 plt.gca().invert_yaxis()
 plt.xlabel('Days')
 plt.ylabel('Magnitude')
-plt.legend(numpoints=1)
+plt.legend(numpoints=1,fontsize=16,ncol=2,frameon=True)
+plt.tight_layout(pad=0.5)
 plt.draw()
 
 # Loop through dictionary and determine which filter has the most data
@@ -470,6 +536,7 @@ if t1!='n':
     plt.ylim(max(d[:,1])+0.2,min(d[:,1])-0.2)
     plt.xlabel('Days from approx maximum')
     plt.ylabel('Magnitude')
+    plt.tight_layout(pad=0.5)
     plt.draw()
 
     # As long as happy ='n', user can keep refitting til they get a good result
@@ -501,6 +568,7 @@ if t1!='n':
         plt.errorbar(d1[:,0],d1[:,1],d1[:,2],fmt='o',color=cols[ref])
 
         plt.ylim(max(d1[:,1])+0.4,min(d1[:,1])-0.2)
+        plt.tight_layout(pad=0.5)
         plt.draw()
 
         # Interactively set polynomial order
@@ -522,8 +590,9 @@ if t1!='n':
 
         plt.ylabel('Magnitude')
         plt.xlabel('Days from approx maximum')
-        plt.legend(numpoints=1)
+        plt.legend(numpoints=1,fontsize=16,ncol=2,frameon=True)
         plt.xlim(min(d[:,0])-5,Xup)
+        plt.tight_layout(pad=0.5)
         plt.draw()
 
         # Check if user likes fit
@@ -545,6 +614,7 @@ if t1!='n':
         plt.ylabel('Magnitude')
         plt.xlabel('Days from maximum')
         plt.ylim(max(d[:,1])+0.2,min(d[:,1])-0.2)
+        plt.tight_layout(pad=0.5)
         plt.draw()
 
     # If user instead wants observed peak, that shift was already done!
@@ -569,7 +639,8 @@ for i in filters:
 plt.gca().invert_yaxis()
 plt.xlabel('Days from '+ref+'-band maximum')
 plt.ylabel('Magnitude')
-plt.legend(numpoints=1)
+plt.legend(numpoints=1,fontsize=16,ncol=2,frameon=True)
+plt.tight_layout(pad=0.5)
 plt.draw()
 
 # Needed for K-correction step a bit later
@@ -614,76 +685,24 @@ if z<10:
     plt.gca().invert_yaxis()
     plt.xlabel('Days from '+ref+'-band maximum')
     plt.ylabel('Magnitude')
-    plt.legend(numpoints=1)
+    plt.legend(numpoints=1,fontsize=16,ncol=2,frameon=True)
+    plt.tight_layout(pad=0.5)
     plt.draw()
 
 
     print('\n######### Step 3: Flux scale ##########')
 
-    # Old version used Ned Wright's cosmology calculator, uncomment to use
-    '''
-    ################# cosmocalc by N. Wright ##################
-
-    # initialize constants
-    H0 = 70                         # Hubble constant
-    WM = 0.27                        # Omega(matter)
-    WV = 1.0 - WM - 0.4165/(H0*H0)  # Omega(vacuum) or lambda
-
-    WR = 0.        # Omega(radiation)
-    WK = 0.        # Omega curvaturve = 1-Omega(total)
-    c = 299792.458 # velocity of light in km/sec
-    Tyr = 977.8    # coefficent for converting 1/H into Gyr
-    DTT = 0.0      # time from z to now in units of 1/H0
-    DCMR = 0.0     # comoving radial distance in units of c/H0
-    DA = 0.0       # angular size distance
-    DL = 0.0       # luminosity distance
-    DL_Mpc = 0.0
-    a = 1.0        # 1/(1+z), the scale factor of the Universe
-    az = 0.5       # 1/(1+z(object))
-
-    h = H0/100.
-    WR = 4.165E-5/(h*h)   # includes 3 massless neutrino species, T0 = 2.72528
-    WK = 1-WM-WR-WV
-    az = 1.0/(1+1.0*z)
-    n=1000         # number of points in integrals
-
-
-    for i in range(n):
-        a = az+(1-az)*(i+0.5)/n
-        adot = np.sqrt(WK+(WM/a)+(WR/(a*a))+(WV*a*a))
-        DTT = DTT + 1./adot
-        DCMR = DCMR + 1./(a*adot)
-
-    DTT = (1.-az)*DTT/n
-    DCMR = (1.-az)*DCMR/n
-
-    ratio = 1.00
-    x = np.sqrt(abs(WK))*DCMR
-    if x > 0.1:
-        if WK > 0:
-            ratio =  0.5*(np.exp(x)-np.exp(-x))/x
-        else:
-            ratio = np.sin(x)/x
-    else:
-        y = x*x
-        if WK < 0: y = -y
-        ratio = 1. + y/6. + y*y/120.
-
-    DCMT = ratio*DCMR
-    DA = az*DCMT
-
-    DL = DA/(az*az)
-
-    DL_Mpc = (c/H0)*DL
-    '''
-
-    # New version uses astropy coordinates.Distance (Added by Sebastian)
+    # New version uses astropy coordinates.Distance
+    # Old version used cosmocalc (thanks to Sebastian Gomez for change)
     # Options for cosmologies
     # WMAP9, H0 = 69.3, Om0 = 0.286, Tcmb0 = 2.725, Neff = 3.04, m_nu = 0, Ob0 = 0.0463
     # And many others...
     # from astropy.cosmology import WMAP9
     # cosmology.set_current(WMAP9)
     DL_Mpc = Distance(z = z).Mpc
+
+    # To use cosmocalc instead, uncomment below:
+    # DL_Mpc = cosmocalc(z)
 
     #############################################
 
@@ -779,10 +798,11 @@ if useInt!='y':
                     plt.errorbar(lc[i][:,0],lc[i][:,1],lc[i][:,2],fmt='o',color=cols[i],label=i)
                     plt.errorbar(lc[ref][:,0],lc[ref][:,1],lc[ref][:,2],fmt='o',color=cols[ref],label=ref)
                     plt.gca().invert_yaxis()
-                    plt.legend(numpoints=1)
+                    plt.legend(numpoints=1,fontsize=16,ncol=2,frameon=True)
                     plt.xlabel('Days from '+ref+'-band maximum')
                     plt.ylabel('Magnitude')
                     plt.ylim(max(max(lc[ref][:,1]),max(lc[i][:,1]))+0.5,min(min(lc[ref][:,1]),min(lc[i][:,1]))-0.5)
+                    plt.tight_layout(pad=0.5)
                     plt.draw()
 
                     # Choose order of polynomial fit to use
@@ -809,7 +829,8 @@ if useInt!='y':
                     plt.plot(days,eq,label='Fit order = %d' %order)
                     plt.ylabel('Magnitude')
                     plt.xlabel('Days from '+ref+'-band maximum')
-                    plt.legend(numpoints=1)
+                    plt.legend(numpoints=1,fontsize=16,ncol=2,frameon=True)
+                    plt.tight_layout(pad=0.5)
                     plt.draw()
 
                     # Check if happy with fit
@@ -896,7 +917,8 @@ if useInt!='y':
                     # Plot constant colour extrapolation
                     plt.errorbar(tmp[tmp[:,0]<low][:,0],early,fmt='o',markersize=12,mfc='none',markeredgewidth=3,markeredgecolor=cols[i],label='Constant colour')
                     plt.errorbar(tmp[tmp[:,0]>up][:,0],late,fmt='o',markersize=12,mfc='none',markeredgewidth=3,markeredgecolor=cols[i])
-                    plt.legend(numpoints=1)
+                    plt.legend(numpoints=1,fontsize=16,ncol=2,frameon=True)
+                    plt.tight_layout(pad=0.5)
                     plt.draw()
 
                     if len(tmp[tmp[:,0]<low])>0:
@@ -976,12 +998,13 @@ if useInt!='y':
     plt.figure(1)
     plt.clf()
     for i in filters:
-        plt.errorbar(lc_int[i][:,0],lc_int[i][:,1],lc_int[i][:,2],fmt='o-',color=cols[i],label=i)
+        plt.errorbar(lc_int[i][:,0],lc_int[i][:,1],lc_int[i][:,2],fmt='o',color=cols[i],label=i)
     plt.gca().invert_yaxis()
     plt.xlabel('Days from '+ref+'-band maximum')
     plt.ylabel('Magnitude')
-    plt.legend(numpoints=1)
+    plt.legend(numpoints=1,fontsize=16,ncol=2,frameon=True)
     plt.ylim(max(max(lc_int[ref][:,1]),max(lc_int[i][:,1]))+0.5,min(min(lc_int[ref][:,1]),min(lc_int[i][:,1]))-0.5)
+    plt.tight_layout(pad=0.5)
     plt.draw()
 
 # Or if light curves were already interpolated, no need for the last 250 lines!
@@ -1123,7 +1146,7 @@ if sep!='y' and sup==0:
     method += '\n# Single BB fit to all wavelengths, with no UV suppression'
 
 # New figure to display SEDs
-plt.figure(2,(12,8))
+plt.figure(2,(8,8))
 plt.clf()
 
 # Loop through reference epochs
@@ -1244,10 +1267,13 @@ for i in range(len(phase)):
     plt.draw()
     plt.xlabel('Wavelength (Ang)')
     plt.ylabel(r'$\mathit{L}_\lambda$ + constant')
-    plt.legend(numpoints=1,ncol=2)
+    plt.legend(numpoints=1,ncol=2,fontsize=16,frameon=True)
 
     # Counter shifts down next SED on plot for visibility
     k += 1
+
+plt.figure(2)
+plt.tight_layout(pad=0.5)
 
 # Add methodologies and keys to output files so user knows which approximations were made in this run
 out1.write('\n#KEY\n# Lobs = integrate observed fluxes with no BB fit\n# L+BB = observed flux + BB fit extrapolation')
@@ -1266,28 +1292,56 @@ L1err_arr = np.array(L1err_arr)
 L2arr = np.array(L2arr)
 L2err_arr = np.array(L2err_arr)
 
-
 print('\n\n*** Done! Displaying bolometric light curve ***')
 
-# Plot pseudo and full bolometric light curves on same axis (log)
-plt.figure(3,(10,8))
-plt.clf()
-
-plt.errorbar(phase,np.log10(L1arr),0.434*L1err_arr/L1arr,fmt='o',color='k',markersize=12,label='Observed flux only')
-plt.errorbar(phase,np.log10(L2arr),0.434*L2err_arr/L2arr,fmt='d',color='r',markersize=9,label='Plus BB correction')
-
-plt.xlabel('Days from '+ref+'-band maximum')
-plt.ylabel(r'$log_{10} \mathit{L}_{bol}\,(erg\,s^{-1})$')
-plt.legend(numpoints=1)
-plt.draw()
-plt.show()
-
 # Save convenient log versions of light curves
-logout = list(zip(phase,np.log10(L1arr),0.434*L1err_arr/L1arr))
-logoutBB = list(zip(phase,np.log10(L2arr),0.434*L2err_arr/L2arr))
+logout = np.array(list(zip(phase,np.log10(L1arr),0.434*L1err_arr/L1arr)))
+logoutBB = np.array(list(zip(phase,np.log10(L2arr),0.434*L2err_arr/L2arr)))
 
 np.savetxt(outdir+'/logL_obs_'+sn+'_'+filters+'.txt',logout,fmt='%.3f',delimiter='\t')
 np.savetxt(outdir+'/logL_bb_'+sn+'_'+filters+'.txt',logoutBB,fmt='%.3f',delimiter='\t')
+
+
+# Plot final outputs
+plt.figure(3,(8,8))
+plt.clf()
+
+plt.subplot(311)
+
+# Plot pseudobolometric and bolometric (including BB) light curves (logarithmic versions)
+plt.errorbar(logout[:,0],logout[:,1],logout[:,2],fmt='o',color='k',markersize=12,label='Observed flux only')
+plt.errorbar(logoutBB[:,0],logoutBB[:,1],logoutBB[:,2],fmt='d',color='r',markersize=9,label='Plus BB correction')
+plt.ylabel(r'$log_{10} \mathit{L}_{bol}\,(erg\,s^{-1})$')
+plt.legend(numpoints=1,fontsize=16)
+
+# Get blackbody temperature and radius
+bbresults = np.genfromtxt(outdir+'/BB_params_'+sn+'_'+filters+'.txt')
+
+# Plot temperature in units of 10^3 K
+plt.subplot(312)
+plt.errorbar(bbresults[:,0],bbresults[:,1]/1e3,bbresults[:,2]/1e3,fmt='o',color='k',markersize=12,label='Fit all bands')
+plt.ylabel(r'$\mathit{T}_{BB}\,(10^3K)$')
+
+if len(bbresults[0])==13:
+    # If separate fit to optical-only, plot this too
+    plt.errorbar(bbresults[:,0],bbresults[:,7]/1e3,bbresults[:,8]/1e3,fmt='s',color='c',markersize=8,label=r'Fit >3000$\AA$')
+    plt.legend(numpoints=1,fontsize=16)
+
+# Plot radius in units of 10^15 cm
+plt.subplot(313)
+plt.errorbar(bbresults[:,0],bbresults[:,3]/1e15,bbresults[:,4]/1e15,fmt='o',color='k',markersize=12,label='Fit all bands')
+plt.ylabel(r'$\mathit{R}_{BB}\,(10^{15}cm)$')
+
+if len(bbresults[0])==13:
+    plt.errorbar(bbresults[:,0],bbresults[:,9]/1e15,bbresults[:,10]/1e15,fmt='s',color='c',markersize=8,label='Exclude UV')
+
+# X-label for all subplots
+plt.xlabel('Days from '+ref+'-band maximum')
+
+plt.tight_layout(pad=0.5)
+plt.draw()
+plt.show()
+
 
 # Wait for key press before closing plots!
 fin = input('\n\n> PRESS RETURN TO EXIT...\n')
