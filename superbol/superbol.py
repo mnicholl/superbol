@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 
-version = '0.15'
+version = '0.16'
 
 '''
     SUPERBOL: Supernova Bolometric Light Curves
-    Written by Matt Nicholl, 2015
+    Written by Matt Nicholl, 2015-2018
 
+    Version 0.16: Correct inconsistency in x axis labels, automatically exit if <2 filters used
     Version 0.15: Plot temperature and radius, other small figure adjustments (MN)
     Version 0.14: Fixed bug where having two reference epochs the same broke manual interpolation (MN)
     Version 0.13: Give user control over whether to fit UV separately, improve commenting and output files, change min integration wavelength to 100A (MN)
@@ -385,7 +386,7 @@ for i in use1:
     # These integers map to the list of input files
     i = int(i)
     # get filter from file name and add to list
-    # filts1 keeps track of filters IN THAT FILE ONLY, filts2 is ALL filters across all files.
+    # filts1 keeps track of filters IN THAT FILE ONLY, filts2 is ALL filters across ALL files.
     filts1 = files[i].split('.')[0]
     filts1 = filts1.split('_')[-1]
     filts2 += filts1
@@ -458,12 +459,15 @@ print('\n######### Step 2: reference band for phase info ##########')
 plt.figure(1,(8,6))
 plt.clf()
 
+# Default time axis label
+xlab = 'Time'
+
 # Plot all light curves on same axes
 for i in filters:
     plt.errorbar(lc[i][:,0],lc[i][:,1],lc[i][:,2],fmt='o',color=cols[i],label=i)
 
 plt.gca().invert_yaxis()
-plt.xlabel('Days')
+plt.xlabel(xlab)
 plt.ylabel('Magnitude')
 plt.legend(numpoints=1,fontsize=16,ncol=2,frameon=True)
 plt.tight_layout(pad=0.5)
@@ -486,6 +490,11 @@ t3 = input('\n> Enter bands to use (blue to red) ['+filters+']   ')
 if not t3: t3 = filters
 
 filters = t3
+
+if len(filters) < 2:
+    # If only one filter, no need to interpolate, and can't apply BB fits, so makes no sense to use superbol!
+    print('At least two filters required - exiting!')
+    sys.exit(0)
 
 # If using light curves that have not yet been interpolated by a previous superbol run, we need a reference filter
 if useInt!='y':
@@ -519,6 +528,9 @@ if not t1:
         for j in lc:
             lc[j][:,0]-=shift
 
+        # update x-axis label
+        xlab += ' from approx '+ref+'-band maximum'
+
         print('\n* Approx shift done')
 
 
@@ -534,7 +546,7 @@ if t1!='n':
     plt.errorbar(d[:,0],d[:,1],d[:,2],fmt='o',color=cols[ref])
 
     plt.ylim(max(d[:,1])+0.2,min(d[:,1])-0.2)
-    plt.xlabel('Days from approx maximum')
+    plt.xlabel(xlab + ' from approx maximum')
     plt.ylabel('Magnitude')
     plt.tight_layout(pad=0.5)
     plt.draw()
@@ -589,7 +601,7 @@ if t1!='n':
         plt.plot(days,eq,label='Fit order = %d' %order)
 
         plt.ylabel('Magnitude')
-        plt.xlabel('Days from approx maximum')
+        plt.xlabel(xlab + ' from approx maximum')
         plt.legend(numpoints=1,fontsize=16,ncol=2,frameon=True)
         plt.xlim(min(d[:,0])-5,Xup)
         plt.tight_layout(pad=0.5)
@@ -605,6 +617,8 @@ if t1!='n':
     # Default is to use polynomial for peak date
     if not new_peak: new_peak = 'p'
 
+    xlab += ' from '+ref+'-band maximum'
+
     # Plot reference band shifted to match polynomial peak
     if new_peak=='p':
         peak = days[np.argmin(eq)]
@@ -612,7 +626,7 @@ if t1!='n':
         plt.clf()
         plt.errorbar(d[:,0],d[:,1],d[:,2],fmt='o',color=cols[ref])
         plt.ylabel('Magnitude')
-        plt.xlabel('Days from maximum')
+        plt.xlabel(xlab)
         plt.ylim(max(d[:,1])+0.2,min(d[:,1])-0.2)
         plt.tight_layout(pad=0.5)
         plt.draw()
@@ -637,7 +651,7 @@ for i in filters:
     plt.errorbar(lc[i][:,0],lc[i][:,1],lc[i][:,2],fmt='o',color=cols[i],label=i)
 
 plt.gca().invert_yaxis()
-plt.xlabel('Days from '+ref+'-band maximum')
+plt.xlabel(xlab)
 plt.ylabel('Magnitude')
 plt.legend(numpoints=1,fontsize=16,ncol=2,frameon=True)
 plt.tight_layout(pad=0.5)
@@ -674,6 +688,9 @@ if z<10:
             lc[j][:,0]/=(1+z)
         print('\n* Displaying corrected phases')
 
+        xlab += ' (rest-frame)'
+        plt.xlabel(xlab)
+
 
     plt.figure(1)
     plt.clf()
@@ -683,7 +700,7 @@ if z<10:
         plt.errorbar(lc[i][:,0],lc[i][:,1],lc[i][:,2],fmt='o',color=cols[i],label=i)
 
     plt.gca().invert_yaxis()
-    plt.xlabel('Days from '+ref+'-band maximum')
+    plt.xlabel(xlab)
     plt.ylabel('Magnitude')
     plt.legend(numpoints=1,fontsize=16,ncol=2,frameon=True)
     plt.tight_layout(pad=0.5)
@@ -799,7 +816,7 @@ if useInt!='y':
                     plt.errorbar(lc[ref][:,0],lc[ref][:,1],lc[ref][:,2],fmt='o',color=cols[ref],label=ref)
                     plt.gca().invert_yaxis()
                     plt.legend(numpoints=1,fontsize=16,ncol=2,frameon=True)
-                    plt.xlabel('Days from '+ref+'-band maximum')
+                    plt.xlabel(xlab)
                     plt.ylabel('Magnitude')
                     plt.ylim(max(max(lc[ref][:,1]),max(lc[i][:,1]))+0.5,min(min(lc[ref][:,1]),min(lc[i][:,1]))-0.5)
                     plt.tight_layout(pad=0.5)
@@ -828,7 +845,7 @@ if useInt!='y':
                         eq += fit[j]*days**(order-j)
                     plt.plot(days,eq,label='Fit order = %d' %order)
                     plt.ylabel('Magnitude')
-                    plt.xlabel('Days from '+ref+'-band maximum')
+                    plt.xlabel(xlab)
                     plt.legend(numpoints=1,fontsize=16,ncol=2,frameon=True)
                     plt.tight_layout(pad=0.5)
                     plt.draw()
@@ -1000,10 +1017,10 @@ if useInt!='y':
     for i in filters:
         plt.errorbar(lc_int[i][:,0],lc_int[i][:,1],lc_int[i][:,2],fmt='o',color=cols[i],label=i)
     plt.gca().invert_yaxis()
-    plt.xlabel('Days from '+ref+'-band maximum')
+    plt.xlabel(xlab)
     plt.ylabel('Magnitude')
     plt.legend(numpoints=1,fontsize=16,ncol=2,frameon=True)
-    plt.ylim(max(max(lc_int[ref][:,1]),max(lc_int[i][:,1]))+0.5,min(min(lc_int[ref][:,1]),min(lc_int[i][:,1]))-0.5)
+    # plt.ylim(max(max(lc_int[ref][:,1]),max(lc_int[i][:,1]))+0.5,min(min(lc_int[ref][:,1]),min(lc_int[i][:,1]))-0.5)
     plt.tight_layout(pad=0.5)
     plt.draw()
 
@@ -1336,7 +1353,7 @@ if len(bbresults[0])==13:
     plt.errorbar(bbresults[:,0],bbresults[:,9]/1e15,bbresults[:,10]/1e15,fmt='s',color='c',markersize=8,label='Exclude UV')
 
 # X-label for all subplots
-plt.xlabel('Days from '+ref+'-band maximum')
+plt.xlabel(xlab)
 
 plt.tight_layout(pad=0.5)
 plt.draw()
