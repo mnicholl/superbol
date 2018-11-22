@@ -6,6 +6,7 @@ version = '0.16'
     SUPERBOL: Supernova Bolometric Light Curves
     Written by Matt Nicholl, 2015-2018
 
+    Version 0.17: Fix bug to write nans instead of blanks when BB fit fails
     Version 0.16: Correct inconsistency in x axis labels, automatically exit if <2 filters used
     Version 0.15: Plot temperature and radius, other small figure adjustments (MN)
     Version 0.14: Fixed bug where having two reference epochs the same broke manual interpolation (MN)
@@ -1253,9 +1254,6 @@ for i in range(len(phase)):
             Luv = itg.trapz(bbody(np.arange(100,wlref[0]),Tuv,Ruv),np.arange(100,wlref[0]))
             Luv_err = Luv*np.sqrt((2*Ruv_err/Ruv)**2+(4*Tuv_err/Tuv)**2)
 
-            # Write out BB params, and optical-only BB params, to file
-            out2.write('%.2f\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\n' %(ph,T1,T1_err,R1,R1_err,L1bb,L1bb_err,Topt,Topt_err,Ropt,Ropt_err,L2bb,L2bb_err))
-
             # Plot UV- and optical-only BBs for comparison to single BB
             plt.figure(2)
             plt.plot(np.arange(3200,25000),bbody(np.arange(3200,25000),Topt,Ropt)-fscale*k,color=cols[filters[k%len(filters)]],linestyle='--',linewidth=1.5)
@@ -1263,9 +1261,12 @@ for i in range(len(phase)):
 
         except:
             # If UV fits failed, just write out the single BB fits
-            out2.write('%.2f\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\n' %(ph,T1,T1_err,R1,R1_err,L1bb,L1bb_err))
-    # If separate fits were not used, just write out the single BB fits
+            Topt,Topt_err,Ropt,Ropt_err,L2bb,L2bb_err = np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
+
+        # Write out BB params, and optical-only BB params, to file
+        out2.write('%.2f\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\n' %(ph,T1,T1_err,R1,R1_err,L1bb,L1bb_err,Topt,Topt_err,Ropt,Ropt_err,L2bb,L2bb_err))
     else:
+        # If separate fits were not used, just write out the single BB fits
         out2.write('%.2f\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\n' %(ph,T1,T1_err,R1,R1_err,L1bb,L1bb_err))
 
     # Estimate total bolometric luminosity as integration over observed flux, plus corrections in UV and NIR from the blackbody extrapolations
@@ -1359,6 +1360,14 @@ plt.tight_layout(pad=0.5)
 plt.draw()
 plt.show()
 
-
 # Wait for key press before closing plots!
 fin = input('\n\n> PRESS RETURN TO EXIT...\n')
+
+plt.figure(1)
+plt.savefig(outdir+'/interpolated_lcs'+sn+'_'+filters+'.pdf')
+
+plt.figure(2)
+plt.savefig(outdir+'/bb_fits'+sn+'_'+filters+'.pdf')
+
+plt.figure(3)
+plt.savefig(outdir+'/results'+sn+'_'+filters+'.pdf')
