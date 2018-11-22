@@ -1331,6 +1331,7 @@ plt.errorbar(logout[:,0],logout[:,1],logout[:,2],fmt='o',color='k',markersize=12
 plt.errorbar(logoutBB[:,0],logoutBB[:,1],logoutBB[:,2],fmt='d',color='r',markersize=9,label='Plus BB correction')
 plt.ylabel(r'$log_{10} \mathit{L}_{bol}\,(erg\,s^{-1})$')
 plt.legend(numpoints=1,fontsize=16)
+plt.xticks(visible=False)
 
 # Get blackbody temperature and radius
 bbresults = np.genfromtxt(outdir+'/BB_params_'+sn+'_'+filters+'.txt')
@@ -1339,6 +1340,7 @@ bbresults = np.genfromtxt(outdir+'/BB_params_'+sn+'_'+filters+'.txt')
 plt.subplot(312)
 plt.errorbar(bbresults[:,0],bbresults[:,1]/1e3,bbresults[:,2]/1e3,fmt='o',color='k',markersize=12,label='Fit all bands')
 plt.ylabel(r'$\mathit{T}_{BB}\,(10^3K)$')
+plt.xticks(visible=False)
 
 if len(bbresults[0])==13:
     # If separate fit to optical-only, plot this too
@@ -1356,6 +1358,7 @@ if len(bbresults[0])==13:
 # X-label for all subplots
 plt.xlabel(xlab)
 
+plt.subplots_adjust(hspace=0)
 plt.tight_layout(pad=0.5)
 plt.draw()
 plt.show()
