@@ -310,7 +310,7 @@ use1 = []
 
 if do1 == 'y':
     # first check for previous superbol interpolations
-    files = glob.glob(outdir+'/interpolated_lcs_'+sn+'*')
+    files = glob.glob(outdir+'/interpolated_lcs_'+sn+'*.txt')
     if len(files)>0:
         print('\n* Interpolated LC(s) already available:')
 
@@ -1363,8 +1363,6 @@ plt.tight_layout(pad=0.5)
 plt.draw()
 plt.show()
 
-# Wait for key press before closing plots!
-fin = input('\n\n> PRESS RETURN TO EXIT...\n')
 
 plt.figure(1)
 plt.savefig(outdir+'/interpolated_lcs_'+sn+'_'+filters+'.pdf')
@@ -1374,3 +1372,7 @@ plt.savefig(outdir+'/bb_fits_'+sn+'_'+filters+'.pdf')
 
 plt.figure(3)
 plt.savefig(outdir+'/results_'+sn+'_'+filters+'.pdf')
+
+
+# Wait for key press before closing plots!
+fin = input('\n\n> PRESS RETURN TO EXIT...\n')
