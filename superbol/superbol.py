@@ -1367,10 +1367,10 @@ plt.show()
 fin = input('\n\n> PRESS RETURN TO EXIT...\n')
 
 plt.figure(1)
-plt.savefig(outdir+'/interpolated_lcs'+sn+'_'+filters+'.pdf')
+plt.savefig(outdir+'/interpolated_lcs_'+sn+'_'+filters+'.pdf')
 
 plt.figure(2)
-plt.savefig(outdir+'/bb_fits'+sn+'_'+filters+'.pdf')
+plt.savefig(outdir+'/bb_fits_'+sn+'_'+filters+'.pdf')
 
 plt.figure(3)
-plt.savefig(outdir+'/results'+sn+'_'+filters+'.pdf')
+plt.savefig(outdir+'/results_'+sn+'_'+filters+'.pdf')
