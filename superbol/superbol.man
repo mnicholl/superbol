@@ -25,7 +25,7 @@ Versions
     Version 0.1 : Origin and veracity of all zeropoints checked by SJS. Comments added, with more details in superbol.man file. Archived this version in /home/sne/soft
     Version 0   : Written by Matt Nicholl (QUB), 2015
 
-NOTE: pre-release version numbers have been downgraded from 1.x->0.x from .14 onwards. 
+NOTE: pre-release version numbers have been downgraded from 1.x->0.x from .14 onwards.
 
 Python program to calculate a bolometric luminosity from a set of input magnitudes which can be
 apparent mags or absolute mags. The program does not do k-corrections or extinction corrections.
@@ -43,7 +43,7 @@ Needs numpy, scipy, matplotlib (and astropy)
 To run code:
  > python superbol.py
 
-Should run in directory with photometry data. User prompted at all steps 
+Should run in directory with photometry data. User prompted at all steps
 (goal: no prior knowledge of superbol required to use it!)
 
 The user is prompted for the input files, which should be called SNname_filters.txt,
@@ -54,6 +54,7 @@ The format of files must be:
 MJD filter1 err1 filter2 err2...
 
 MJD can be replaced by phase or some other time parameter, but must be consistent between files.
+Important: Bands must be in their common systems -- AB mag for ugrizy and GALEX, Vega mag for UBVRIJHK and Swift (S=UVW2 D=UVM2 A=UVW1)
 Important : Order of filter magnitudes in file must match order of filters in filename.
 Output of each run of the code will contain all the filters used in the integration in the filenames
 
@@ -75,36 +76,36 @@ Output of each run of the code will contain all the filters used in the integrat
 Steps:
  - Find files associated with SN and determine available filters and data
  - Correct for time dilation, distance, and approximate K-correction if desired
- - Map light curves in each filter to a common set of times 
+ - Map light curves in each filter to a common set of times
     (typically defined by the filter with most observations)
-    - Interpolation options: linear between neighbouring epochs or polynomial fits 
+    - Interpolation options: linear between neighbouring epochs or polynomial fits
        (user determines order of polynomial interactively)
-    - Extrapolation: using polynomials or assuming constant colour with respect to reference filter. 
+    - Extrapolation: using polynomials or assuming constant colour with respect to reference filter.
         Large extrapolations = large uncertainties!
     - Save interpolated light curves for reproducability!
- - Fit blackbodies to SED at each epoch (most SNe can be reasonably approximated by blackbody above ~3000 A). 
+ - Fit blackbodies to SED at each epoch (most SNe can be reasonably approximated by blackbody above ~3000 A).
     In UV, user can choose to:
     - fit SED over all wavelengths with single blackbody
-    - fit separate blackbodies to optical and UV (if UV data exist). 
-        Optical fit gives better temperature estimate than single BB. 
+    - fit separate blackbodies to optical and UV (if UV data exist).
+        Optical fit gives better temperature estimate than single BB.
          UV fit used only to extrapolate flux for bolometric luminosity.
-    - use a simple prescription for line blanketing at UV wavelengths, 
-        defined as L_uv(lambda < cutoff) = L_bb(lambda)*(lambda/cutoff)^x, where x is chosen by user. 
+    - use a simple prescription for line blanketing at UV wavelengths,
+        defined as L_uv(lambda < cutoff) = L_bb(lambda)*(lambda/cutoff)^x, where x is chosen by user.
         Cutoff is either set to bluest available band, or if bluest band is >3000A, cutoff = 3000A
-- Numerically integrate observed SEDs, and account for missing UV and NIR flux using blackbody extrapolations. 
+- Numerically integrate observed SEDs, and account for missing UV and NIR flux using blackbody extrapolations.
     NIR is easy, UV uses options described above
 - Save outputs:
-    - interpolated_lcs_<SN>_<filters>.txt = multicolour light curves mapped to common times. 
-        Footer gives methods of interpolation and extrapolation. 
+    - interpolated_lcs_<SN>_<filters>.txt = multicolour light curves mapped to common times.
+        Footer gives methods of interpolation and extrapolation.
          If file exists, can be read in future to skip interpolating next time.
-    - bol_<SN>_<filters>.txt = main output. 
-        Contains pseudobolometric light curve, integrated trapezoidally, 
-        and bolometric light curve including the additional BB corrections, and errors on each. 
+    - bol_<SN>_<filters>.txt = main output.
+        Contains pseudobolometric light curve, integrated trapezoidally,
+        and bolometric light curve including the additional BB corrections, and errors on each.
         Footer gives filters and method of UV fitting.
     - logL_obs_<SN>_<filters>.txt = same pseudobolometric (observed) light curve, in convenient log form
     - logL_obs_<SN>_<filters>.txt = light curve with the BB corrections, in convenient log form
-    - BB_params_<SN>_<filters>.txt = fit parameters for blackbodies: T, R and inferred L from Stefan-Boltzmann law 
-        (can compare with direct integration method). If separate optical/UV fit, gives both T_bb (fit to all data) 
+    - BB_params_<SN>_<filters>.txt = fit parameters for blackbodies: T, R and inferred L from Stefan-Boltzmann law
+        (can compare with direct integration method). If separate optical/UV fit, gives both T_bb (fit to all data)
         and T_opt (fit only to data >3000 A)
 
 

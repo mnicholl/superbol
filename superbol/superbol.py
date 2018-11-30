@@ -45,7 +45,7 @@ version = '0.16'
 
     MJD can be replaced by phase or some other time parameter, but must be consistent between files.
 
-    Important: Bands must be in their common systems -- AB mag for ugrizy and GALEX, Vega mag for UBVRIJHK and Swift
+    Important: Bands must be in their common systems -- AB mag for ugrizy and GALEX, Vega mag for UBVRIJHK and Swift (S=UVW2 D=UVM2 A=UVW1)
     Important : Order of filter magnitudes in file must match order of filters in filename.
 
     Output of each run of the code will contain all the filters used in the integration in the filenames
