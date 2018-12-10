@@ -21,6 +21,7 @@ Maintenance and updates will prioritise python 3 version, but python 2 version a
 
 Versions
 ------------
+    Version 1.0 : Release version, Nicholl 2018 RNAAS (MN)
     Version 0.17: Fix bug to write nans instead of blanks when BB fit fails
     Version 0.16: Correct inconsistency in x axis labels, automatically exit if <2 filters used
     Version 0.15: Plot temperature and radius, other small figure adjustments (MN)
