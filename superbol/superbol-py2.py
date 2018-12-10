@@ -1,29 +1,14 @@
 #!/usr/bin/env python
 
-from __future__ import division
-from __future__ import absolute_import
-import numpy as np
-import matplotlib.pyplot as plt
-import scipy.integrate as itg
-from scipy.optimize import curve_fit
-from scipy.interpolate import interpolate as interp
-import glob
-import sys
-import os
-# If you don't have astropy, can comment this out, and uncomment cosmocalc routine
-from astropy.coordinates import Distance
-from itertools import izip
-from io import open
-
-version = '0.15'
+version = '1.0 '
 
 '''
     SUPERBOL: Supernova Bolometric Light Curves
-    Written by Matt Nicholl, 2015
+    Written by Matt Nicholl, 2015-2018
 
-    NOTE: this has been converted from stable python 3 version (superbol.py) and is not fully tested
-    Please consider using python 3 if possible!
-
+    Version 1.0 : Release version, Nicholl 2018 RNAAS (MN)
+    Version 0.17: Fix bug to write nans instead of blanks when BB fit fails (MN)
+    Version 0.16: Correct inconsistency in x axis labels, automatically exit if <2 filters used (MN)
     Version 0.15: Plot temperature and radius, other small figure adjustments (MN)
     Version 0.14: Fixed bug where having two reference epochs the same broke manual interpolation (MN)
     Version 0.13: Give user control over whether to fit UV separately, improve commenting and output files, change min integration wavelength to 100A (MN)
@@ -61,7 +46,7 @@ version = '0.15'
 
     MJD can be replaced by phase or some other time parameter, but must be consistent between files.
 
-    Important: Bands must be in their common systems -- AB mag for ugrizy and GALEX, Vega mag for UBVRIJHK and Swift
+    Important: Bands must be in their common systems -- AB mag for ugrizy and GALEX, Vega mag for UBVRIJHK and Swift (S=UVW2 D=UVM2 A=UVW1)
     Important : Order of filter magnitudes in file must match order of filters in filename.
 
     Output of each run of the code will contain all the filters used in the integration in the filenames
@@ -89,8 +74,35 @@ version = '0.15'
     Recommended practice: run once with ALL available filters, and fit missing data as best you can using light curve interpolations. Then re-run choosing only the well-observed filters for the integration. You can compare results and decide for yourself whether you have more belief in the "integrate all filters with light curve extrapolations" method or the "integrate only the well-sampled filters and account for missing flux with blackbodies" method.
     '''
 
+
+import numpy as np
+import matplotlib.pyplot as plt
+import scipy.integrate as itg
+from scipy.optimize import curve_fit
+from scipy.interpolate import interpolate as interp
+import glob
+import sys
+import os
+# If you don't have astropy, can comment this out, and uncomment cosmocalc routine
+from astropy.coordinates import Distance
+
+
 # print 'cool' logo
-print '\n    * * * * * * * * * * * * * * * * * * * * *\n    *                                       *\n    *        Welcome to `SUPER BOL`!        *\n    *   SUPernova BOLometric light curves   *\n    *                                       *\n    *                ______                 *\n    *               {\   */}                *\n    *                 \__/                  *\n    *                  ||                   *\n    *                 ====                  *\n    *                                       *\n    *          M. Nicholl (V'+version+')           *\n    *                                       *\n    * * * * * * * * * * * * * * * * * * * * *\n\n'
+print '\n    * * * * * * * * * * * * * * * * * * * * *'
+print '    *                                       *'
+print '    *        Welcome to `SUPER BOL`!        *'
+print '    *   SUPernova BOLometric light curves   *'
+print '    *                                       *'
+print '    *                ______                 *'
+print '    *               {\   */}                *'
+print '    *                 \__/                  *'
+print '    *                  ||                   *'
+print '    *                 ====                  *'
+print '    *                                       *'
+print '    *    Matt Nicholl 2018 (RNAAS YYY,Z)    *'
+print '    *                 V'+version+'                 *'
+print '    *                                       *'
+print '    * * * * * * * * * * * * * * * * * * * * *\n\n'
 
 # interactive plotting
 plt.ion()
@@ -195,7 +207,7 @@ def cosmocalc(z):
     n=1000         # number of points in integrals
 
 
-    for i in xrange(n):
+    for i in range(n):
         a = az+(1-az)*(i+0.5)/n
         adot = np.sqrt(WK+(WM/a)+(WR/(a*a))+(WV*a*a))
         DTT = DTT + 1./adot
@@ -313,12 +325,12 @@ use1 = []
 
 if do1 == 'y':
     # first check for previous superbol interpolations
-    files = glob.glob(outdir+'/interpolated_lcs_'+sn+'*')
+    files = glob.glob(outdir+'/interpolated_lcs_'+sn+'*.txt')
     if len(files)>0:
         print '\n* Interpolated LC(s) already available:'
 
         # If multiple interpolations exist, ask user which they want
-        for i in xrange(len(files)):
+        for i in range(len(files)):
             print '  ', i, ':', files[i]
 
         use = raw_input('\n> Use interpolated LC? (e.g. 0,2 for files 0 and 2, or n for no) [0]\n (Warning: using multiple interpolation files can cause problems unless times match!)   ')
@@ -344,7 +356,7 @@ if do1 == 'y':
             # If files are found, print them and let the user choose which ones to read in
             print '\n* Available files:'
 
-            for i in xrange(len(files)):
+            for i in range(len(files)):
                 print '  ', i, ':', files[i]
 
             use = raw_input('\n> Specify files to use (e.g. 0,2 for files 0 and 2) [all]   ')
@@ -354,7 +366,7 @@ if do1 == 'y':
                     use1.append(i)
             else:
                 # Or include all files
-                for i in xrange(len(files)):
+                for i in range(len(files)):
                     use1.append(i)
 
         else:
@@ -375,7 +387,7 @@ if do1 != 'y':
     for i in files1.split(','):
         # If manually specified files given, add them to input list
         files.append(i)
-    for i in xrange(len(files)):
+    for i in range(len(files)):
         # Also need to keep an integer index for each file, so we can treat them the same as we would the automatically-detected files
         use1.append(i)
 
@@ -384,13 +396,13 @@ if do1 != 'y':
 lc = {}
 
 # This keeps track of filters used (don't remember why I used strings in place of lists...)
-filts2 = unicode()
+filts2 = str()
 
 for i in use1:
     # These integers map to the list of input files
     i = int(i)
     # get filter from file name and add to list
-    # filts1 keeps track of filters IN THAT FILE ONLY, filts2 is ALL filters across all files.
+    # filts1 keeps track of filters IN THAT FILE ONLY, filts2 is ALL filters across ALL files.
     filts1 = files[i].split('.')[0]
     filts1 = filts1.split('_')[-1]
     filts2 += filts1
@@ -402,35 +414,35 @@ for i in use1:
         for j in filts1:
             # loop over filters (j) in file and add each light curve to dictionary
             # column 0 is time, odd columns (x) are magnitudes, even columns (x+2) are errors
-            lc[j] = np.array(list(izip(d[:,0][~np.isnan(d[:,x])],d[:,x][~np.isnan(d[:,x])],d[:,x+1][~np.isnan(d[:,x])])))
+            lc[j] = np.array(list(zip(d[:,0][~np.isnan(d[:,x])],d[:,x][~np.isnan(d[:,x])],d[:,x+1][~np.isnan(d[:,x])])))
             x+=2
     except:
         try:
             d = np.genfromtxt(files[i],skip_header=1)
             x = 1
             for j in filts1:
-                lc[j] = np.array(list(izip(d[:,0][~np.isnan(d[:,x])],d[:,x][~np.isnan(d[:,x])],d[:,x+1][~np.isnan(d[:,x])])))
+                lc[j] = np.array(list(zip(d[:,0][~np.isnan(d[:,x])],d[:,x][~np.isnan(d[:,x])],d[:,x+1][~np.isnan(d[:,x])])))
                 x+=2
         except:
             try:
                 d= np.genfromtxt(files[i],delimiter=',')
                 x = 1
                 for j in filts1:
-                    lc[j] = np.array(list(izip(d[:,0][~np.isnan(d[:,x])],d[:,x][~np.isnan(d[:,x])],d[:,x+1][~np.isnan(d[:,x])])))
+                    lc[j] = np.array(list(zip(d[:,0][~np.isnan(d[:,x])],d[:,x][~np.isnan(d[:,x])],d[:,x+1][~np.isnan(d[:,x])])))
                     x+=2
             except:
                 try:
                     d= np.genfromtxt(files[i],delimiter=',',skip_header=1)
                     x = 1
                     for j in filts1:
-                        lc[j] = np.array(list(izip(d[:,0][~np.isnan(d[:,x])],d[:,x][~np.isnan(d[:,x])],d[:,x+1][~np.isnan(d[:,x])])))
+                        lc[j] = np.array(list(zip(d[:,0][~np.isnan(d[:,x])],d[:,x][~np.isnan(d[:,x])],d[:,x+1][~np.isnan(d[:,x])])))
                         x+=2
                 except:
                     raise ValueError('Could not read file')
 
 
 # sort list of recognised filters from filts2 into wavelength order:
-filters = unicode()
+filters = str()
 for i in bandlist:
     if i in filts2:
         filters += i
@@ -443,7 +455,7 @@ for i in filts2:
         wle[i] = float(raw_input(' >Lambda_eff (angstroms):   '))
         zp[i] = float(raw_input(' >Flux zero point (1e11 erg/cm2/s/ang):   '))
         width[i] = float(raw_input(' >Filter width (angstroms):   '))
-        ftmp = unicode()
+        ftmp = str()
         cols[i] = 'grey'
         for j in filters:
             if wle[j]<wle[i]:
@@ -463,12 +475,15 @@ print '\n######### Step 2: reference band for phase info ##########'
 plt.figure(1,(8,6))
 plt.clf()
 
+# Default time axis label
+xlab = 'Time'
+
 # Plot all light curves on same axes
 for i in filters:
     plt.errorbar(lc[i][:,0],lc[i][:,1],lc[i][:,2],fmt='o',color=cols[i],label=i)
 
 plt.gca().invert_yaxis()
-plt.xlabel('Days')
+plt.xlabel(xlab)
 plt.ylabel('Magnitude')
 plt.legend(numpoints=1,fontsize=16,ncol=2,frameon=True)
 plt.tight_layout(pad=0.5)
@@ -491,6 +506,11 @@ t3 = raw_input('\n> Enter bands to use (blue to red) ['+filters+']   ')
 if not t3: t3 = filters
 
 filters = t3
+
+if len(filters) < 2:
+    # If only one filter, no need to interpolate, and can't apply BB fits, so makes no sense to use superbol!
+    print 'At least two filters required - exiting!'
+    sys.exit(0)
 
 # If using light curves that have not yet been interpolated by a previous superbol run, we need a reference filter
 if useInt!='y':
@@ -524,6 +544,9 @@ if not t1:
         for j in lc:
             lc[j][:,0]-=shift
 
+        # update x-axis label
+        xlab += ' from approx '+ref+'-band maximum'
+
         print '\n* Approx shift done'
 
 
@@ -539,7 +562,7 @@ if t1!='n':
     plt.errorbar(d[:,0],d[:,1],d[:,2],fmt='o',color=cols[ref])
 
     plt.ylim(max(d[:,1])+0.2,min(d[:,1])-0.2)
-    plt.xlabel('Days from approx maximum')
+    plt.xlabel(xlab + ' from approx maximum')
     plt.ylabel('Magnitude')
     plt.tight_layout(pad=0.5)
     plt.draw()
@@ -560,7 +583,7 @@ if t1!='n':
         print '\n### Select data range ###'
 
         # Interactively set upper limit on times to fit
-        Xup = raw_input('>> Cut-off phase for polynomial fit?['+unicode(Xup1)+']   ')
+        Xup = raw_input('>> Cut-off phase for polynomial fit?['+str(Xup1)+']   ')
         if not Xup: Xup = Xup1
         Xup = float(Xup)
         Xup1 = Xup
@@ -577,7 +600,7 @@ if t1!='n':
         plt.draw()
 
         # Interactively set polynomial order
-        order = raw_input('\n>> Order of polynomial to fit?['+unicode(order1)+']   ')
+        order = raw_input('\n>> Order of polynomial to fit?['+str(order1)+']   ')
         if not order: order = order1
         order = int(order)
         order1 = order
@@ -588,13 +611,13 @@ if t1!='n':
         # Plot the polynomial
         days = np.arange(min(-40,min(d[:,0]))-10,Xup)
         eq = 0
-        for i in xrange(len(fit)):
+        for i in range(len(fit)):
             # Loop allows calculation for arbitrary polynomial order
             eq += fit[i]*days**(order-i)
         plt.plot(days,eq,label='Fit order = %d' %order)
 
         plt.ylabel('Magnitude')
-        plt.xlabel('Days from approx maximum')
+        plt.xlabel(xlab + ' from approx maximum')
         plt.legend(numpoints=1,fontsize=16,ncol=2,frameon=True)
         plt.xlim(min(d[:,0])-5,Xup)
         plt.tight_layout(pad=0.5)
@@ -610,6 +633,8 @@ if t1!='n':
     # Default is to use polynomial for peak date
     if not new_peak: new_peak = 'p'
 
+    xlab += ' from '+ref+'-band maximum'
+
     # Plot reference band shifted to match polynomial peak
     if new_peak=='p':
         peak = days[np.argmin(eq)]
@@ -617,7 +642,7 @@ if t1!='n':
         plt.clf()
         plt.errorbar(d[:,0],d[:,1],d[:,2],fmt='o',color=cols[ref])
         plt.ylabel('Magnitude')
-        plt.xlabel('Days from maximum')
+        plt.xlabel(xlab)
         plt.ylim(max(d[:,1])+0.2,min(d[:,1])-0.2)
         plt.tight_layout(pad=0.5)
         plt.draw()
@@ -642,7 +667,7 @@ for i in filters:
     plt.errorbar(lc[i][:,0],lc[i][:,1],lc[i][:,2],fmt='o',color=cols[i],label=i)
 
 plt.gca().invert_yaxis()
-plt.xlabel('Days from '+ref+'-band maximum')
+plt.xlabel(xlab)
 plt.ylabel('Magnitude')
 plt.legend(numpoints=1,fontsize=16,ncol=2,frameon=True)
 plt.tight_layout(pad=0.5)
@@ -679,6 +704,9 @@ if z<10:
             lc[j][:,0]/=(1+z)
         print '\n* Displaying corrected phases'
 
+        xlab += ' (rest-frame)'
+        plt.xlabel(xlab)
+
 
     plt.figure(1)
     plt.clf()
@@ -688,7 +716,7 @@ if z<10:
         plt.errorbar(lc[i][:,0],lc[i][:,1],lc[i][:,2],fmt='o',color=cols[i],label=i)
 
     plt.gca().invert_yaxis()
-    plt.xlabel('Days from '+ref+'-band maximum')
+    plt.xlabel(xlab)
     plt.ylabel('Magnitude')
     plt.legend(numpoints=1,fontsize=16,ncol=2,frameon=True)
     plt.tight_layout(pad=0.5)
@@ -804,14 +832,14 @@ if useInt!='y':
                     plt.errorbar(lc[ref][:,0],lc[ref][:,1],lc[ref][:,2],fmt='o',color=cols[ref],label=ref)
                     plt.gca().invert_yaxis()
                     plt.legend(numpoints=1,fontsize=16,ncol=2,frameon=True)
-                    plt.xlabel('Days from '+ref+'-band maximum')
+                    plt.xlabel(xlab)
                     plt.ylabel('Magnitude')
                     plt.ylim(max(max(lc[ref][:,1]),max(lc[i][:,1]))+0.5,min(min(lc[ref][:,1]),min(lc[i][:,1]))-0.5)
                     plt.tight_layout(pad=0.5)
                     plt.draw()
 
                     # Choose order of polynomial fit to use
-                    order = raw_input('\n>> Order of polynomial to fit?(q to quit and use constant colour)['+unicode(order1)+']   ')
+                    order = raw_input('\n>> Order of polynomial to fit?(q to quit and use constant colour)['+str(order1)+']   ')
                     # If user decides they can't get a good fit, enter q to use simple linear interpolation and constant-colour extrapolation
                     if order == 'q':
                         break
@@ -828,12 +856,12 @@ if useInt!='y':
                     # Plot fit
                     days = np.arange(np.min(lc[ref][:,0]),np.max(lc[ref][:,0]))
                     eq = 0
-                    for j in xrange(len(fit)):
+                    for j in range(len(fit)):
                         # Loop for arbitrary polynomial order
                         eq += fit[j]*days**(order-j)
                     plt.plot(days,eq,label='Fit order = %d' %order)
                     plt.ylabel('Magnitude')
-                    plt.xlabel('Days from '+ref+'-band maximum')
+                    plt.xlabel(xlab)
                     plt.legend(numpoints=1,fontsize=16,ncol=2,frameon=True)
                     plt.tight_layout(pad=0.5)
                     plt.draw()
@@ -846,14 +874,14 @@ if useInt!='y':
                 # If user quit polyfit, use easyint
                 if order == 'q':
                     tmp1,tmp2 = easyint(lc[i][:,0],lc[i][:,1],lc[i][:,2],lc[ref][:,0],lc[ref][:,1])
-                    tmp = list(izip(lc[ref][:,0],tmp1,tmp2))
+                    tmp = list(zip(lc[ref][:,0],tmp1,tmp2))
                     lc_int[i] = np.array(tmp)
                     print '\n* Interpolating linearly; extrapolating assuming constant colour...'
                     # Add method to output
                     intKey += '\n# '+i+': Linear interp; extrap=c'
                 else:
                     # If user was happy with fit, add different interpolation string to output
-                    intKey += '\n# '+i+': fit order='+unicode(order)+'; extrap method '
+                    intKey += '\n# '+i+': fit order='+str(order)+'; extrap method '
 
                     # Construct polynomial interpolation
                     # Goal: if band has point at same epoch as ref band, use point; otherwise, use polynomial prediction
@@ -877,7 +905,7 @@ if useInt!='y':
                             if k[0] not in tmp_arr[:,0]:
                                 # If no match in current band, calculate magnitude from polynomial
                                 mag = 0
-                                for j in xrange(len(fit)):
+                                for j in range(len(fit)):
                                     # Sum works for arbitrary polynomial order
                                     mag += fit[j]*k[0]**(order-j)
                                 # Append polynomial magnitude to light curve, with an error floor of 0.1 mags
@@ -888,7 +916,7 @@ if useInt!='y':
                         for l in lc[ref][:,0]:
                             # Construct polynomial mag as above for each reference time
                             mag = 0
-                            for j in xrange(len(fit)):
+                            for j in range(len(fit)):
                                 mag += fit[j]*l**(order-j)
                             out = np.array([l,mag,max(np.mean(lc[i][:,2]),0.1)])
                             mag_int.append(out)
@@ -967,7 +995,7 @@ if useInt!='y':
             # For every band except reference, use easyint for linear interpolation between points, and constant colour extrapolation
             if i!=ref:
                 tmp1,tmp2 = easyint(lc[i][:,0],lc[i][:,1],lc[i][:,2],lc[ref][:,0],lc[ref][:,1])
-                tmp = list(izip(lc[ref][:,0],tmp1,tmp2))
+                tmp = list(zip(lc[ref][:,0],tmp1,tmp2))
                 lc_int[i] = np.array(tmp)
         print '\n* Interpolating linearly; extrapolating assuming constant colour...'
 
@@ -978,7 +1006,7 @@ if useInt!='y':
     # Start with reference times
     int_out[:,0] = lc[ref][:,0]
 
-    for i in xrange(len(filters)):
+    for i in range(len(filters)):
         # Append magnitudes and errors, in order from bluest to reddest bands
         int_out[:,2*i+1] = lc_int[filters[i]][:,1]
         int_out[:,2*i+2] = lc_int[filters[i]][:,2]
@@ -1005,10 +1033,10 @@ if useInt!='y':
     for i in filters:
         plt.errorbar(lc_int[i][:,0],lc_int[i][:,1],lc_int[i][:,2],fmt='o',color=cols[i],label=i)
     plt.gca().invert_yaxis()
-    plt.xlabel('Days from '+ref+'-band maximum')
+    plt.xlabel(xlab)
     plt.ylabel('Magnitude')
     plt.legend(numpoints=1,fontsize=16,ncol=2,frameon=True)
-    plt.ylim(max(max(lc_int[ref][:,1]),max(lc_int[i][:,1]))+0.5,min(min(lc_int[ref][:,1]),min(lc_int[i][:,1]))-0.5)
+    # plt.ylim(max(max(lc_int[ref][:,1]),max(lc_int[i][:,1]))+0.5,min(min(lc_int[ref][:,1]),min(lc_int[i][:,1]))-0.5)
     plt.tight_layout(pad=0.5)
     plt.draw()
 
@@ -1111,9 +1139,9 @@ bluecut = 1
 sup = 0
 if sep == 'n':
     # cutoff wavelength is eithet the bluest band (if data constrain SED below 3000A), or else fixed at 3000A (where deviation from BB usually starts becoming clear)
-    bluecut = min(wlref[0],3000)
+    bluecut = float(min(wlref[0],3000))
     # User specifies degree of suppression - higher polynomial order takes flux to zero faster. Value of x~1 is recommended for most cases
-    sup = raw_input('\n> Suppression index for BB flux bluewards of '+unicode(bluecut)+'A?\n  i.e. L_uv(lam) = L_bb(lam)*(lam/'+unicode(bluecut)+')^x\n [x=0 (i.e. no suppression)] ')
+    sup = raw_input('\n> Suppression index for BB flux bluewards of '+str(bluecut)+'A?\n  i.e. L_uv(lam) = L_bb(lam)*(lam/'+str(bluecut)+')^x\n [x=0 (i.e. no suppression)] ')
     # Default is no suppression
     if not sup: sup = 0
     sup = float(sup)
@@ -1123,14 +1151,14 @@ out1 = open(outdir+'/bol_'+sn+'_'+filters+'.txt','w')
 out2 = open(outdir+'/BB_params_'+sn+'_'+filters+'.txt','w')
 
 # Write header for bol file
-out1.write(u'# ph\tLobs\terr\tL+BB\terr\t\n\n')
+out1.write('# ph\tLobs\terr\tL+BB\terr\t\n\n')
 
 # Write header for BB params file - if separate UV/optical fits, need another set of columns for the optical-only filts
 # T_bb etc are fits to all data, T_opt are fits to data at lambda>3000A (i.e. not affected by line blanketing)
 if sep=='y':
-    out2.write(u'# ph\tT_bb\terr\tR_bb\terr\tL_bb\terr\tT_opt\terr\tR_opt\terr\tL_opt\terr\n\n')
+    out2.write('# ph\tT_bb\terr\tR_bb\terr\tL_bb\terr\tT_opt\terr\tR_opt\terr\tL_opt\terr\n\n')
 else:
-    out2.write(u'# ph\tT_bb\terr\tR_bb\terr\tL_bb\terr\n\n')
+    out2.write('# ph\tT_bb\terr\tR_bb\terr\tL_bb\terr\n\n')
 
 # Display various lines for different fitting assumptions, tell user here rather than cluttering figure legend
 print '\n*** Fitting Blackbodies to SED ***'
@@ -1144,7 +1172,7 @@ if sep=='y':
 if sup!=0:
     # plot suppression if used, and tell output file where suppression began and what was the index
     print '* Dotted lines = UV flux with assumed blanketing'
-    method += '\n# BB fit below '+unicode(bluecut)+'A suppressed by factor (lamda/'+unicode(bluecut)+')^'+unicode(sup)
+    method += '\n# BB fit below '+str(bluecut)+'A suppressed by factor (lamda/'+str(bluecut)+')^'+str(sup)
 
 if sep!='y' and sup==0:
     # if a single un-suppressed BB was used, add this to output file
@@ -1155,13 +1183,13 @@ plt.figure(2,(8,8))
 plt.clf()
 
 # Loop through reference epochs
-for i in xrange(len(phase)):
+for i in range(len(phase)):
     # get date
     ph = phase[i]
     # Get list of mags and errors in all filters at each epoch - start with blank arrays to add all filters
     mags = np.zeros(len(filters))
     errs = np.zeros(len(filters))
-    for j in xrange(len(filters)):
+    for j in range(len(filters)):
         # Loop through filters and populate SED tables with interpolated light curves
         mags[j] = lc_int[filters[j]][i,1]
         errs[j] = lc_int[filters[j]][i,2]
@@ -1241,9 +1269,6 @@ for i in xrange(len(phase)):
             Luv = itg.trapz(bbody(np.arange(100,wlref[0]),Tuv,Ruv),np.arange(100,wlref[0]))
             Luv_err = Luv*np.sqrt((2*Ruv_err/Ruv)**2+(4*Tuv_err/Tuv)**2)
 
-            # Write out BB params, and optical-only BB params, to file
-            out2.write(u'%.2f\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\n' %(ph,T1,T1_err,R1,R1_err,L1bb,L1bb_err,Topt,Topt_err,Ropt,Ropt_err,L2bb,L2bb_err))
-
             # Plot UV- and optical-only BBs for comparison to single BB
             plt.figure(2)
             plt.plot(np.arange(3200,25000),bbody(np.arange(3200,25000),Topt,Ropt)-fscale*k,color=cols[filters[k%len(filters)]],linestyle='--',linewidth=1.5)
@@ -1251,10 +1276,13 @@ for i in xrange(len(phase)):
 
         except:
             # If UV fits failed, just write out the single BB fits
-            out2.write(u'%.2f\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\n' %(ph,T1,T1_err,R1,R1_err,L1bb,L1bb_err))
-    # If separate fits were not used, just write out the single BB fits
+            Topt,Topt_err,Ropt,Ropt_err,L2bb,L2bb_err = np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
+
+        # Write out BB params, and optical-only BB params, to file
+        out2.write('%.2f\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\n' %(ph,T1,T1_err,R1,R1_err,L1bb,L1bb_err,Topt,Topt_err,Ropt,Ropt_err,L2bb,L2bb_err))
     else:
-        out2.write(u'%.2f\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\n' %(ph,T1,T1_err,R1,R1_err,L1bb,L1bb_err))
+        # If separate fits were not used, just write out the single BB fits
+        out2.write('%.2f\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\n' %(ph,T1,T1_err,R1,R1_err,L1bb,L1bb_err))
 
     # Estimate total bolometric luminosity as integration over observed flux, plus corrections in UV and NIR from the blackbody extrapolations
     # If separate UV fit was used, Luv comes from this fit and Lnir comes from optical-only fit
@@ -1267,7 +1295,7 @@ for i in xrange(len(phase)):
     L2err_arr.append(L2_err)
 
     # Write light curve to file: L1 is pseudobolometric, L2 is full bolometric
-    out1.write(u'%.2f\t%.2e\t%.2e\t%.2e\t%.2e\n' %(ph,L1,L1_err,L2,L2_err))
+    out1.write('%.2f\t%.2e\t%.2e\t%.2e\t%.2e\n' %(ph,L1,L1_err,L2,L2_err))
 
     plt.draw()
     plt.xlabel('Wavelength (Ang)')
@@ -1281,11 +1309,11 @@ plt.figure(2)
 plt.tight_layout(pad=0.5)
 
 # Add methodologies and keys to output files so user knows which approximations were made in this run
-out1.write(u'\n#KEY\n# Lobs = integrate observed fluxes with no BB fit\n# L+BB = observed flux + BB fit extrapolation')
-out1.write(u'\n# See logL_obs_'+sn+'_'+filters+'.txt and logL_bb_'+sn+'_'+filters+'.txt for simple LC files')
+out1.write('\n#KEY\n# Lobs = integrate observed fluxes with no BB fit\n# L+BB = observed flux + BB fit extrapolation')
+out1.write('\n# See logL_obs_'+sn+'_'+filters+'.txt and logL_bb_'+sn+'_'+filters+'.txt for simple LC files')
 out1.write(method)
-out2.write(u'\n#KEY\n# _bb = blackbody fit to all wavelengths, _opt = fit only data redwards of 3000A\n# L_bb = luminosity from Stefan-Boltzman; L_opt = same but using T_opt and R_opt')
-out2.write(u'\n# (in contrast, bol_'+sn+'_'+filters+'.txt file contains trapezoidal integration over observed wavelengths)')
+out2.write('\n#KEY\n# _bb = blackbody fit to all wavelengths, _opt = fit only data redwards of 3000A\n# L_bb = luminosity from Stefan-Boltzman; L_opt = same but using T_opt and R_opt')
+out2.write('\n# (in contrast, bol_'+sn+'_'+filters+'.txt file contains trapezoidal integration over observed wavelengths)')
 
 # Close output files
 out1.close()
@@ -1300,8 +1328,8 @@ L2err_arr = np.array(L2err_arr)
 print '\n\n*** Done! Displaying bolometric light curve ***'
 
 # Save convenient log versions of light curves
-logout = np.array(list(izip(phase,np.log10(L1arr),0.434*L1err_arr/L1arr)))
-logoutBB = np.array(list(izip(phase,np.log10(L2arr),0.434*L2err_arr/L2arr)))
+logout = np.array(list(zip(phase,np.log10(L1arr),0.434*L1err_arr/L1arr)))
+logoutBB = np.array(list(zip(phase,np.log10(L2arr),0.434*L2err_arr/L2arr)))
 
 np.savetxt(outdir+'/logL_obs_'+sn+'_'+filters+'.txt',logout,fmt='%.3f',delimiter='\t')
 np.savetxt(outdir+'/logL_bb_'+sn+'_'+filters+'.txt',logoutBB,fmt='%.3f',delimiter='\t')
@@ -1316,8 +1344,9 @@ plt.subplot(311)
 # Plot pseudobolometric and bolometric (including BB) light curves (logarithmic versions)
 plt.errorbar(logout[:,0],logout[:,1],logout[:,2],fmt='o',color='k',markersize=12,label='Observed flux only')
 plt.errorbar(logoutBB[:,0],logoutBB[:,1],logoutBB[:,2],fmt='d',color='r',markersize=9,label='Plus BB correction')
-plt.ylabel(ur'$log_{10} \mathit{L}_{bol}\,(erg\,s^{-1})$')
+plt.ylabel(r'$log_{10} \mathit{L}_{bol}\,(erg\,s^{-1})$')
 plt.legend(numpoints=1,fontsize=16)
+plt.xticks(visible=False)
 
 # Get blackbody temperature and radius
 bbresults = np.genfromtxt(outdir+'/BB_params_'+sn+'_'+filters+'.txt')
@@ -1325,27 +1354,39 @@ bbresults = np.genfromtxt(outdir+'/BB_params_'+sn+'_'+filters+'.txt')
 # Plot temperature in units of 10^3 K
 plt.subplot(312)
 plt.errorbar(bbresults[:,0],bbresults[:,1]/1e3,bbresults[:,2]/1e3,fmt='o',color='k',markersize=12,label='Fit all bands')
-plt.ylabel(ur'$\mathit{T}_{BB}\,(10^3K)$')
+plt.ylabel(r'$\mathit{T}_{BB}\,(10^3K)$')
+plt.xticks(visible=False)
 
 if len(bbresults[0])==13:
     # If separate fit to optical-only, plot this too
-    plt.errorbar(bbresults[:,0],bbresults[:,7]/1e3,bbresults[:,8]/1e3,fmt='s',color='c',markersize=8,label=ur'Fit >3000$\AA$')
+    plt.errorbar(bbresults[:,0],bbresults[:,7]/1e3,bbresults[:,8]/1e3,fmt='s',color='c',markersize=8,label=r'Fit >3000$\AA$')
     plt.legend(numpoints=1,fontsize=16)
 
 # Plot radius in units of 10^15 cm
 plt.subplot(313)
 plt.errorbar(bbresults[:,0],bbresults[:,3]/1e15,bbresults[:,4]/1e15,fmt='o',color='k',markersize=12,label='Fit all bands')
-plt.ylabel(ur'$\mathit{R}_{BB}\,(10^{15}cm)$')
+plt.ylabel(r'$\mathit{R}_{BB}\,(10^{15}cm)$')
 
 if len(bbresults[0])==13:
     plt.errorbar(bbresults[:,0],bbresults[:,9]/1e15,bbresults[:,10]/1e15,fmt='s',color='c',markersize=8,label='Exclude UV')
 
 # X-label for all subplots
-plt.xlabel('Days from '+ref+'-band maximum')
+plt.xlabel(xlab)
 
+plt.subplots_adjust(hspace=0)
 plt.tight_layout(pad=0.5)
 plt.draw()
 plt.show()
+
+
+plt.figure(1)
+plt.savefig(outdir+'/interpolated_lcs_'+sn+'_'+filters+'.pdf')
+
+plt.figure(2)
+plt.savefig(outdir+'/bb_fits_'+sn+'_'+filters+'.pdf')
+
+plt.figure(3)
+plt.savefig(outdir+'/results_'+sn+'_'+filters+'.pdf')
 
 
 # Wait for key press before closing plots!

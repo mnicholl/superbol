@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 
-version = '0.17'
+version = '1.0 '
 
 '''
     SUPERBOL: Supernova Bolometric Light Curves
     Written by Matt Nicholl, 2015-2018
 
-    Version 0.17: Fix bug to write nans instead of blanks when BB fit fails
-    Version 0.16: Correct inconsistency in x axis labels, automatically exit if <2 filters used
+    Version 1.0 : Release version, Nicholl 2018 RNAAS (MN)
+    Version 0.17: Fix bug to write nans instead of blanks when BB fit fails (MN)
+    Version 0.16: Correct inconsistency in x axis labels, automatically exit if <2 filters used (MN)
     Version 0.15: Plot temperature and radius, other small figure adjustments (MN)
     Version 0.14: Fixed bug where having two reference epochs the same broke manual interpolation (MN)
     Version 0.13: Give user control over whether to fit UV separately, improve commenting and output files, change min integration wavelength to 100A (MN)
@@ -87,7 +88,21 @@ from astropy.coordinates import Distance
 
 
 # print 'cool' logo
-print('\n    * * * * * * * * * * * * * * * * * * * * *\n    *                                       *\n    *        Welcome to `SUPER BOL`!        *\n    *   SUPernova BOLometric light curves   *\n    *                                       *\n    *                ______                 *\n    *               {\   */}                *\n    *                 \__/                  *\n    *                  ||                   *\n    *                 ====                  *\n    *                                       *\n    *          M. Nicholl (V'+version+')           *\n    *                                       *\n    * * * * * * * * * * * * * * * * * * * * *\n\n')
+print('\n    * * * * * * * * * * * * * * * * * * * * *')
+print('    *                                       *')
+print('    *        Welcome to `SUPER BOL`!        *')
+print('    *   SUPernova BOLometric light curves   *')
+print('    *                                       *')
+print('    *                ______                 *')
+print('    *               {\   */}                *')
+print('    *                 \__/                  *')
+print('    *                  ||                   *')
+print('    *                 ====                  *')
+print('    *                                       *')
+print('    *    Matt Nicholl 2018 (RNAAS YYY,Z)    *')
+print('    *                 V'+version+'                 *')
+print('    *                                       *')
+print('    * * * * * * * * * * * * * * * * * * * * *\n\n')
 
 # interactive plotting
 plt.ion()
@@ -1124,7 +1139,7 @@ bluecut = 1
 sup = 0
 if sep == 'n':
     # cutoff wavelength is eithet the bluest band (if data constrain SED below 3000A), or else fixed at 3000A (where deviation from BB usually starts becoming clear)
-    bluecut = min(wlref[0],3000)
+    bluecut = float(min(wlref[0],3000))
     # User specifies degree of suppression - higher polynomial order takes flux to zero faster. Value of x~1 is recommended for most cases
     sup = input('\n> Suppression index for BB flux bluewards of '+str(bluecut)+'A?\n  i.e. L_uv(lam) = L_bb(lam)*(lam/'+str(bluecut)+')^x\n [x=0 (i.e. no suppression)] ')
     # Default is no suppression
