@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 
-version = '1.0 '
+version = '1.1 '
 
 '''
     SUPERBOL: Supernova Bolometric Light Curves
     Written by Matt Nicholl, 2015-2018
 
+    Version 1.1 : Add bibliographic reference, output file now includes K-correction info (MN)
     Version 1.0 : Release version, Nicholl 2018 RNAAS (MN)
     Version 0.17: Fix bug to write nans instead of blanks when BB fit fails (MN)
     Version 0.16: Correct inconsistency in x axis labels, automatically exit if <2 filters used (MN)
@@ -99,7 +100,7 @@ print('    *                 \__/                  *')
 print('    *                  ||                   *')
 print('    *                 ====                  *')
 print('    *                                       *')
-print('    *       Matt Nicholl 2018 (RNAAS)       *')
+print('    *   Matt Nicholl (2018, RNAAS, 2, 230)  *')
 print('    *                 V'+version+'                 *')
 print('    *                                       *')
 print('    * * * * * * * * * * * * * * * * * * * * *\n\n')
@@ -1113,6 +1114,12 @@ print('\n######### Step 5: Fit blackbodies and integrate flux #########')
 # construct some notes for output file
 method = '\n# Methodology:'
 method += '\n# filters used:'+filters
+method += '\n# redshift used:'+str(z)
+
+if doKcorr == 'y':
+    method += '\n# Flux and wavelength converted to rest-frame'
+else:
+    method += '\n# Wavelengths used in observer frame (data already K-corrected?)'
 
 # Set up some parameters for the BB fits and integrations:
 # First, if there are sufficient UV data, best to fit UV and optical separately

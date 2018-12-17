@@ -3,7 +3,7 @@
 [![DOI](https://zenodo.org/badge/73849147.svg)](https://zenodo.org/badge/latestdoi/73849147)
 
 Python program to calculate a bolometric luminosity from a set of input magnitudes, which can be
-apparent mags or absolute mags. 
+apparent mags or absolute mags.
 
 Requirements and usage:
 - numpy
@@ -23,7 +23,8 @@ Maintenance and updates will prioritise python 3 version, but python 2 version a
 
 Versions
 ------------
-    Version 1.0 : Release version, Nicholl 2018 RNAAS (MN) 
+    Version 1.1 : Add bibliographic reference, output file now includes K-correction info (MN)
+    Version 1.0 : Release version, Nicholl 2018 RNAAS (MN)
     Version 0.17: Fix bug to write nans instead of blanks when BB fit fails
     Version 0.16: Correct inconsistency in x axis labels, automatically exit if <2 filters used
     Version 0.15: Plot temperature and radius, other small figure adjustments (MN)
@@ -106,7 +107,7 @@ Steps:
 - Numerically integrate observed SEDs, and account for missing UV and NIR flux using blackbody extrapolations.
     NIR is easy, UV uses options described above
 
-Outputs 
+Outputs
 ------
 - interpolated_lcs_<SN>_<filters>.txt
     - multicolour light curves mapped to common times.
@@ -122,7 +123,7 @@ Outputs
 - logL_obs_<SN>_<filters>.txt
     - light curve with the BB corrections, in convenient log form
 - BB_params_<SN>_<filters>.txt
-    - fit parameters for blackbodies: T, R and inferred L from Stefan-Boltzmann law (can compare with direct integration method). 
+    - fit parameters for blackbodies: T, R and inferred L from Stefan-Boltzmann law (can compare with direct integration method).
     - If separate optical/UV fit, gives both T_bb (fit to all data) and T_opt (fit only to data >3000 A)
 
 
