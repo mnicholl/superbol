@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 
-version = '1.1 '
+version = '1.2 '
 
 '''
     SUPERBOL: Supernova Bolometric Light Curves
     Written by Matt Nicholl, 2015-2018
 
+    Version 1.2 : Add extinction correction as an option (MN)
     Version 1.1 : Add bibliographic reference, output file now includes K-correction info (MN)
     Version 1.0 : Release version, Nicholl 2018 RNAAS (MN)
     Version 0.17: Fix bug to write nans instead of blanks when BB fit fails (MN)
