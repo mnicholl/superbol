@@ -286,6 +286,11 @@ width = {'u': 458,  'g': 928, 'r': 812, 'i': 894,  'z': 1183, 'y': 628, 'Y': 628
          'U': 485,  'B': 831, 'V': 827, 'R': 1389, 'G': 4203, 'I': 899, 'J': 1759, 'H': 2041,
          'K': 2800, 'S': 671, 'D': 446, 'A': 821,  'F': 268,  'N': 732, 'o': 2580, 'c': 2280}
 
+#Extinction coefficients in A_lam / E(B-V). Uses York Extinction Solver (http://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/community/YorkExtinctionSolver/coefficients.cgi)
+extco = {'u': 4.786,  'g': 3.587, 'r': 2.471, 'i': 1.798,  'z': 1.403, 'y': 1.228, 'Y': 1.228,
+         'U': 4.744,  'B': 4.016, 'V': 3.011, 'R': 2.386, 'G': 2.216, 'I': 1.684, 'J': 0.813, 'H': 0.516,
+         'K': 0.337, 'S': 8.795, 'D': 9.270, 'A': 6.432,  'F': 8.054,  'N': 8.969, 'o': 2.185, 'c': 3.111}
+
 # Colours for plots
 cols = {'u': 'dodgerblue', 'g': 'g', 'r': 'r', 'i': 'goldenrod', 'z': 'k', 'y': '0.5',
         'Y': '0.5', 'U': 'slateblue', 'B': 'b', 'V': 'yellowgreen', 'R': 'crimson', 'G': 'salmon',
@@ -777,6 +782,18 @@ else:
         dist = 1e-5*3.086e24
 
 
+# Extinction correction
+ebv = input('\n> Please enter Galactic E(B-V): \n'
+                        '  (0 if data are already extinction-corrected) [0]   ')
+if not ebv: ebv=0
+ebv = float(ebv)
+
+for i in lc:
+    # Subtract foreground extinction using input E(B-V) and coefficients from YES
+    lc[i][:,1]-=extco[i]*ebv
+
+
+
 # Whether to apply approximate K correction
 doKcorr = 'n'
 
@@ -785,6 +802,7 @@ if skipK == 'n':
     # converting to rest-frame means wavelength /= 1+z and flux *= 1+z. But if input magnitudes were K-corrected, this has already been done implicitly!
     doKcorr = input('\n> Do you want to covert flux and wavelength to rest-frame?\n'
                             '  (skip this step if data are already K-corrected) [n]   ')
+
 
 
 
