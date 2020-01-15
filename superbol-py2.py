@@ -1164,7 +1164,7 @@ bluecut = 1
 # These default parameters give an unattenuated blackbody
 sup = 0
 if sep == 'n':
-    # cutoff wavelength is eithet the bluest band (if data constrain SED below 3000A), or else fixed at 3000A (where deviation from BB usually starts becoming clear)
+    # cutoff wavelength is either the bluest band (if data constrain SED below 3000A), or else fixed at 3000A (where deviation from BB usually starts becoming clear)
     bluecut = float(min(wlref[0],3000))
     # User specifies degree of suppression - higher polynomial order takes flux to zero faster. Value of x~1 is recommended for most cases
     sup = raw_input('\n> Suppression index for BB flux bluewards of '+str(bluecut)+'A?\n  i.e. L_uv(lam) = L_bb(lam)*(lam/'+str(bluecut)+')^x\n [x=0 (i.e. no suppression)] ')
@@ -1297,7 +1297,7 @@ for i in range(len(phase)):
 
             # Plot UV- and optical-only BBs for comparison to single BB
             plt.figure(2)
-            plt.plot(np.arange(3200,25000),bbody(np.arange(3200,25000),Topt,Ropt)-fscale*k,color=cols[filters[k%len(filters)]],linestyle='--',linewidth=1.5)
+            plt.plot(np.arange(3000,25000),bbody(np.arange(3000,25000),Topt,Ropt)-fscale*k,color=cols[filters[k%len(filters)]],linestyle='--',linewidth=1.5)
             plt.plot(np.arange(100,3600),bbody(np.arange(100,3600),Tuv,Ruv)-fscale*k,color=cols[filters[k%len(filters)]],linestyle='-.',linewidth=1.5)
 
         except:
@@ -1332,6 +1332,8 @@ for i in range(len(phase)):
     k += 1
 
 plt.figure(2)
+plt.yticks([])
+plt.xlim(min(wlref)-2000,max(wlref)+3000)
 plt.tight_layout(pad=0.5)
 
 # Add methodologies and keys to output files so user knows which approximations were made in this run
