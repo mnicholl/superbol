@@ -23,6 +23,8 @@ Maintenance and updates will prioritise python 3 version, but python 2 version a
 
 Versions
 ------------
+    Version 1.3 : Minor tweaks to output plots (MN)
+    Version 1.2 : Add extinction correction as an option (MN)
     Version 1.1 : Add bibliographic reference, output file now includes K-correction info (MN)
     Version 1.0 : Release version, Nicholl 2018 RNAAS (MN)
     Version 0.17: Fix bug to write nans instead of blanks when BB fit fails

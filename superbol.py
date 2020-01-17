@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-version = '1.2 '
+version = '1.3 '
 
 '''
     SUPERBOL: Supernova Bolometric Light Curves
