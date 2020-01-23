@@ -6,6 +6,7 @@ version = '1.3 '
     SUPERBOL: Supernova Bolometric Light Curves
     Written by Matt Nicholl, 2015-2018
 
+    Version 1.4 : Narrow date range for finding max of polynomial fit to peak
     Version 1.3 : Minor tweaks to output plots (MN)
     Version 1.2 : Add extinction correction as an option (MN)
     Version 1.1 : Add bibliographic reference, output file now includes K-correction info (MN)
@@ -645,6 +646,11 @@ if t1!='n':
 
     # Plot reference band shifted to match polynomial peak
     if new_peak=='p':
+        days = np.arange(d[:,0][np.argmin(d[:,1])]-10,d[:,0][np.argmin(d[:,1])]+10)
+        eq = 0
+        for i in range(len(fit)):
+            # Loop allows calculation for arbitrary polynomial order
+            eq += fit[i]*days**(order-i)
         peak = days[np.argmin(eq)]
         d[:,0] -= peak
         plt.clf()
