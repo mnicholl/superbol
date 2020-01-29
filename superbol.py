@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 
-version = '1.3 '
+version = '1.5 '
 
 '''
     SUPERBOL: Supernova Bolometric Light Curves
     Written by Matt Nicholl, 2015-2018
 
-    Version 1.4 : Narrow date range for finding max of polynomial fit to peak
+    Version 1.5 : Add prompt to convert Swift AB to Vega (MN)
+    Version 1.4 : Narrow date range for finding max of polynomial fit to peak (MN)
     Version 1.3 : Minor tweaks to output plots (MN)
     Version 1.2 : Add extinction correction as an option (MN)
     Version 1.1 : Add bibliographic reference, output file now includes K-correction info (MN)
@@ -790,6 +791,8 @@ else:
         dist = 1e-5*3.086e24
 
 
+
+
 # Extinction correction
 ebv = input('\n> Please enter Galactic E(B-V): \n'
                         '  (0 if data are already extinction-corrected) [0]   ')
@@ -800,18 +803,27 @@ for i in lc:
     # Subtract foreground extinction using input E(B-V) and coefficients from YES
     lc[i][:,1]-=extco[i]*ebv
 
+# If UVOT bands are in AB, need to convert to Vega
+if 'S' in lc or 'D' in lc or 'A' in lc:
+    shiftSwift = input('\n> UVOT bands detected. These must be in Vega mags.\n'
+                            '  Apply AB->Vega correction for these bands? [n]   ')
+    if not shiftSwift: shiftSwift = 'n'
 
+    if shiftSwift == 'y':
+        if 'S' in lc:
+            lc['S'][:,1] -= 1.51
+        if 'D' in lc:
+            lc['D'][:,1] -= 1.69
+        if 'A' in lc:
+            lc['A'][:,1] -= 1.73
 
 # Whether to apply approximate K correction
 doKcorr = 'n'
-
 # i.e. if we have a redshift:
 if skipK == 'n':
     # converting to rest-frame means wavelength /= 1+z and flux *= 1+z. But if input magnitudes were K-corrected, this has already been done implicitly!
     doKcorr = input('\n> Do you want to covert flux and wavelength to rest-frame?\n'
                             '  (skip this step if data are already K-corrected) [n]   ')
-
-
 
 
 print('\n######### Step 4: Interpolate LCs to ref epochs ##########')
