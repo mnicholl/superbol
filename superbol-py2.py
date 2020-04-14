@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 
-version = '1.5 '
+version = '1.6 '
 
 '''
     SUPERBOL: Supernova Bolometric Light Curves
     Written by Matt Nicholl, 2015-2018
 
+    Version 1.6 : Save interpolations before applying other corrections (MN)
     Version 1.5 : Add prompt to convert Swift AB to Vega (MN)
     Version 1.4 : Narrow date range for finding max of polynomial fit to peak (MN)
     Version 1.3 : Minor tweaks to output plots (MN)
@@ -792,39 +793,6 @@ else:
         dist = 1e-5*3.086e24
 
 
-# Extinction correction
-ebv = input('\n> Please enter Galactic E(B-V): \n'
-                        '  (0 if data are already extinction-corrected) [0]   ')
-if not ebv: ebv=0
-ebv = float(ebv)
-
-for i in lc:
-    # Subtract foreground extinction using input E(B-V) and coefficients from YES
-    lc[i][:,1]-=extco[i]*ebv
-
-# If UVOT bands are in AB, need to convert to Vega
-if 'S' in lc or 'D' in lc or 'A' in lc:
-    shiftSwift = input('\n> UVOT bands detected. These must be in Vega mags.\n'
-                            '  Apply AB->Vega correction for these bands? [n]   ')
-    if not shiftSwift: shiftSwift = 'n'
-
-    if shiftSwift == 'y':
-        if 'S' in lc:
-            lc['S'][:,1] -= 1.51
-        if 'D' in lc:
-            lc['D'][:,1] -= 1.69
-        if 'A' in lc:
-            lc['A'][:,1] -= 1.73
-
-# Whether to apply approximate K correction
-doKcorr = 'n'
-# i.e. if we have a redshift:
-if skipK == 'n':
-    # converting to rest-frame means wavelength /= 1+z and flux *= 1+z. But if input magnitudes were K-corrected, this has already been done implicitly!
-    doKcorr = input('\n> Do you want to covert flux and wavelength to rest-frame?\n'
-                            '  (skip this step if data are already K-corrected) [n]   ')
-
-
 print '\n######### Step 4: Interpolate LCs to ref epochs ##########'
 
 # If light curves are not already interpolated, now we need to do some work
@@ -1087,7 +1055,42 @@ else:
     for i in filters:
         lc_int[i] = lc[i]
 
-# Convert mags to flux
+
+print '\n######### Step 5: Extinction and K-corrections #########'
+
+
+# Extinction correction
+ebv = input('\n> Please enter Galactic E(B-V): \n'
+                        '  (0 if data are already extinction-corrected) [0]   ')
+if not ebv: ebv=0
+ebv = float(ebv)
+
+for i in lc:
+    # Subtract foreground extinction using input E(B-V) and coefficients from YES
+    lc[i][:,1]-=extco[i]*ebv
+
+# If UVOT bands are in AB, need to convert to Vega
+if 'S' in lc or 'D' in lc or 'A' in lc:
+    shiftSwift = input('\n> UVOT bands detected. These must be in Vega mags.\n'
+                            '  Apply AB->Vega correction for these bands? [n]   ')
+    if not shiftSwift: shiftSwift = 'n'
+
+    if shiftSwift == 'y':
+        if 'S' in lc:
+            lc['S'][:,1] -= 1.51
+        if 'D' in lc:
+            lc['D'][:,1] -= 1.69
+        if 'A' in lc:
+            lc['A'][:,1] -= 1.73
+
+# Whether to apply approximate K correction
+doKcorr = 'n'
+# i.e. if we have a redshift:
+if skipK == 'n':
+    # converting to rest-frame means wavelength /= 1+z and flux *= 1+z. But if input magnitudes were K-corrected, this has already been done implicitly!
+    doKcorr = input('\n> Do you want to covert flux and wavelength to rest-frame?\n'
+                            '  (skip this step if data are already K-corrected) [n]   ')
+
 
 
 ######### Now comes the main course - time to build SEDs and integrate luminosity
@@ -1131,6 +1134,23 @@ if doKcorr == 'y':
     fref *= (1+z)
     bandwidths /= (1+z)
 
+
+# construct some notes for output file
+method = '\n# Methodology:'
+method += '\n# filters used:'+filters
+method += '\n# redshift used:'+str(z)
+method += '\n# extinction used:'+str(ebv)
+
+if doKcorr == 'y':
+    method += '\n# Flux and wavelength converted to rest-frame'
+else:
+    method += '\n# Wavelengths used in observer frame (data already K-corrected?)'
+
+
+
+print '\n######### Step 6: Fit blackbodies and integrate flux #########'
+
+
 # these are needed to scale and offset SEDs when plotting, to help visibility
 k = 1
 fscale = 4*np.pi*dist**2*zp[ref]*1e-11*10**(-0.4*min(lc[ref][:,1]))
@@ -1144,19 +1164,6 @@ Lbb_full_arr = []
 Lbb_full_err_arr = []
 Lbb_opt_arr = []
 Lbb_opt_err_arr = []
-
-
-print '\n######### Step 5: Fit blackbodies and integrate flux #########'
-
-# construct some notes for output file
-method = '\n# Methodology:'
-method += '\n# filters used:'+filters
-method += '\n# redshift used:'+str(z)
-
-if doKcorr == 'y':
-    method += '\n# Flux and wavelength converted to rest-frame'
-else:
-    method += '\n# Wavelengths used in observer frame (data already K-corrected?)'
 
 # Set up some parameters for the BB fits and integrations:
 # First, if there are sufficient UV data, best to fit UV and optical separately
