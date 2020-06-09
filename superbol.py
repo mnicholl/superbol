@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 
-version = '1.6 '
+version = '1.7 '
 
 '''
     SUPERBOL: Supernova Bolometric Light Curves
     Written by Matt Nicholl, 2015-2018
 
+    Version 1.7 : Fix bug introduced in 1.6 where extinction/Swift corrections not always applied (MN)
     Version 1.6 : Save interpolations before applying other corrections (MN)
     Version 1.5 : Add prompt to convert Swift AB to Vega (MN)
     Version 1.4 : Narrow date range for finding max of polynomial fit to peak (MN)
@@ -1065,23 +1066,23 @@ ebv = input('\n> Please enter Galactic E(B-V): \n'
 if not ebv: ebv=0
 ebv = float(ebv)
 
-for i in lc:
+for i in lc_int:
     # Subtract foreground extinction using input E(B-V) and coefficients from YES
-    lc[i][:,1]-=extco[i]*ebv
+    lc_int[i][:,1]-=extco[i]*ebv
 
 # If UVOT bands are in AB, need to convert to Vega
-if 'S' in lc or 'D' in lc or 'A' in lc:
+if 'S' in lc_int or 'D' in lc_int or 'A' in lc_int:
     shiftSwift = input('\n> UVOT bands detected. These must be in Vega mags.\n'
                             '  Apply AB->Vega correction for these bands? [n]   ')
     if not shiftSwift: shiftSwift = 'n'
 
     if shiftSwift == 'y':
-        if 'S' in lc:
-            lc['S'][:,1] -= 1.51
-        if 'D' in lc:
-            lc['D'][:,1] -= 1.69
-        if 'A' in lc:
-            lc['A'][:,1] -= 1.73
+        if 'S' in lc_int:
+            lc_int['S'][:,1] -= 1.51
+        if 'D' in lc_int:
+            lc_int['D'][:,1] -= 1.69
+        if 'A' in lc_int:
+            lc_int['A'][:,1] -= 1.73
 
 # Whether to apply approximate K correction
 doKcorr = 'n'
