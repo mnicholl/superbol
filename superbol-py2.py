@@ -4,8 +4,9 @@ version = '1.7 '
 
 '''
     SUPERBOL: Supernova Bolometric Light Curves
-    Written by Matt Nicholl, 2015-2018
+    Written by Matt Nicholl, 2015-2020
 
+    Version 1.8 : Fix bug in suppression integral - thanks Sebastian Gomez (MN)
     Version 1.7 : Fix bug introduced in 1.6 where extinction/Swift corrections not always applied (MN)
     Version 1.6 : Save interpolations before applying other corrections (MN)
     Version 1.5 : Add prompt to convert Swift AB to Vega (MN)
@@ -1060,8 +1061,8 @@ else:
 print '\n######### Step 5: Extinction and K-corrections #########'
 
 # Extinction correction
-ebv = input('\n> Please enter Galactic E(B-V): \n'
-                        '  (0 if data are already extinction-corrected) [0]   ')
+ebv = raw_input('\n> Please enter Galactic E(B-V): \n'
+                            '  (0 if data are already extinction-corrected) [0]   ')
 if not ebv: ebv=0
 ebv = float(ebv)
 
@@ -1071,7 +1072,7 @@ for i in lc_int:
 
 # If UVOT bands are in AB, need to convert to Vega
 if 'S' in lc_int or 'D' in lc_int or 'A' in lc_int:
-    shiftSwift = input('\n> UVOT bands detected. These must be in Vega mags.\n'
+    shiftSwift = raw_input('\n> UVOT bands detected. These must be in Vega mags.\n'
                             '  Apply AB->Vega correction for these bands? [n]   ')
     if not shiftSwift: shiftSwift = 'n'
 
@@ -1088,7 +1089,7 @@ doKcorr = 'n'
 # i.e. if we have a redshift:
 if skipK == 'n':
     # converting to rest-frame means wavelength /= 1+z and flux *= 1+z. But if input magnitudes were K-corrected, this has already been done implicitly!
-    doKcorr = input('\n> Do you want to covert flux and wavelength to rest-frame?\n'
+    doKcorr = raw_input('\n> Do you want to covert flux and wavelength to rest-frame?\n'
                             '  (skip this step if data are already K-corrected) [n]   ')
 
 
@@ -1280,7 +1281,7 @@ for i in range(len(phase)):
     L1bb_err = L1bb*np.sqrt((2*R1_err/R1)**2+(4*T1_err/T1)**2)
 
     # Get UV luminosity (i.e. bluewards of bluest band)
-    Luv = itg.trapz(bbody(np.arange(100,bluecut),T1,R1),np.arange(100,bluecut)*(np.arange(100,bluecut)/bluecut)**sup)
+    Luv = itg.trapz(bbody(np.arange(100,bluecut),T1,R1)*(np.arange(100,bluecut)/bluecut)**sup,np.arange(100,bluecut))
     if bluecut < wlref[0]:
         # If no UV data and cutoff defaults to 3000A, need to further integrate (unabsorbed) BB from cutoff up to the bluest band
         Luv += itg.trapz(bbody(np.arange(bluecut,wlref[0]),T1,R1),np.arange(bluecut,wlref[0]))

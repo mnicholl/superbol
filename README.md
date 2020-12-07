@@ -17,12 +17,17 @@ To run code:
 
 
 - superbol.py  (Python 3 version, preferred)
-- superbol-py2.py (Python 2 version)
+- superbol-py2.py (Python 2 version WILL NOT BE MAINTAINED AFTER v1.8)
 
 Maintenance and updates will prioritise python 3 version, but python 2 version also appears to work.
 
 Versions
 ------------
+    Version 1.8 : Fix bug in suppression integral - thanks Sebastian Gomez (MN)
+    Version 1.7 : Fix bug introduced in 1.6 where extinction/Swift corrections not always applied (MN)
+    Version 1.6 : Save interpolations before applying other corrections (MN)
+    Version 1.5 : Add prompt to convert Swift AB to Vega (MN)
+    Version 1.4 : Narrow date range for finding max of polynomial fit to peak (MN)
     Version 1.3 : Minor tweaks to output plots (MN)
     Version 1.2 : Add extinction correction as an option (MN)
     Version 1.1 : Add bibliographic reference, output file now includes K-correction info (MN)

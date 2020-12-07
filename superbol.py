@@ -4,8 +4,9 @@ version = '1.7 '
 
 '''
     SUPERBOL: Supernova Bolometric Light Curves
-    Written by Matt Nicholl, 2015-2018
+    Written by Matt Nicholl, 2015-2020
 
+    Version 1.8 : Fix bug in suppression integral - thanks Sebastian Gomez (MN)
     Version 1.7 : Fix bug introduced in 1.6 where extinction/Swift corrections not always applied (MN)
     Version 1.6 : Save interpolations before applying other corrections (MN)
     Version 1.5 : Add prompt to convert Swift AB to Vega (MN)
@@ -1278,7 +1279,7 @@ for i in range(len(phase)):
     L1bb_err = L1bb*np.sqrt((2*R1_err/R1)**2+(4*T1_err/T1)**2)
 
     # Get UV luminosity (i.e. bluewards of bluest band)
-    Luv = itg.trapz(bbody(np.arange(100,bluecut),T1,R1),np.arange(100,bluecut)*(np.arange(100,bluecut)/bluecut)**sup)
+    Luv = itg.trapz(bbody(np.arange(100,bluecut),T1,R1)*(np.arange(100,bluecut)/bluecut)**sup,np.arange(100,bluecut))
     if bluecut < wlref[0]:
         # If no UV data and cutoff defaults to 3000A, need to further integrate (unabsorbed) BB from cutoff up to the bluest band
         Luv += itg.trapz(bbody(np.arange(bluecut,wlref[0]),T1,R1),np.arange(bluecut,wlref[0]))
