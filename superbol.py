@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 
-version = '1.7 '
+version = '1.10'
 
 '''
     SUPERBOL: Supernova Bolometric Light Curves
-    Written by Matt Nicholl, 2015-2020
+    Written by Matt Nicholl, 2015-2021
 
+    Version 1.10: If no overlap in temporal coverage with reference band, extrapolate to nearest epoch for colour (MN)
+    Version 1.9 : Add w band (MN)
     Version 1.8 : Fix bug in suppression integral - thanks Sebastian Gomez (MN)
     Version 1.7 : Fix bug introduced in 1.6 where extinction/Swift corrections not always applied (MN)
     Version 1.6 : Save interpolations before applying other corrections (MN)
@@ -169,8 +171,14 @@ def easyint(x,y,err,xref,yref):
     yint = interp.interp1d(x[np.argsort(x)],y[np.argsort(x)])(xref[ir])
     yout = np.zeros(len(xref),dtype=float)
     # For times before or after observed filter has observations, use constant colour with reference band
-    ylow = yint[np.argmin(xref[ir])]-yref[ir][np.argmin(xref[ir])]+yref[xref<min(x)]
-    yup  = yint[np.argmax(xref[ir])]-yref[ir][np.argmax(xref[ir])]+yref[xref>max(x)]
+    try:
+        ylow = yint[np.argmin(xref[ir])]-yref[ir][np.argmin(xref[ir])]+yref[xref<min(x)]
+    except:
+        ylow = y[0]-yref[-1]+yref[xref<min(x)]
+    try:
+        yup  = yint[np.argmax(xref[ir])]-yref[ir][np.argmax(xref[ir])]+yref[xref>max(x)]
+    except:
+        yup  = y[-1]-yref[0]+yref[xref>max(x)]
     yout[ir] = yint
     yout[xref<min(x)] = ylow
     yout[xref>max(x)] = yup
@@ -253,7 +261,7 @@ def cosmocalc(z):
 #the wavelength weighted averages (effective wavelengths in their Table 2a, first row)
 
 #Effective wavelengths (in Angs)
-wle = {'u': 3560,  'g': 4830, 'r': 6260, 'i': 7670, 'z': 8890, 'y': 9600, 'Y': 9600,
+wle = {'u': 3560,  'g': 4830, 'r': 6260, 'i': 7670, 'z': 8890, 'y': 9600, 'w':5985, 'Y': 9600,
        'U': 3600,  'B': 4380, 'V': 5450, 'R': 6410, 'G': 6730, 'I': 7980, 'J': 12200, 'H': 16300,
        'K': 21900, 'S': 2030, 'D': 2231, 'A': 2634, 'F': 1516, 'N': 2267, 'o': 6790, 'c': 5330}
 # For Swift UVOT: S=UVW2, D=UVM2, A=UVW1
@@ -284,29 +292,29 @@ wle = {'u': 3560,  'g': 4830, 'r': 6260, 'i': 7670, 'z': 8890, 'y': 9600, 'Y': 9
 # ATLAS values taken from Tonry et al 2018
 
 #All values in 1e-11 erg/s/cm2/Angs
-zp = {'u': 859.5, 'g': 466.9, 'r': 278.0, 'i': 185.2, 'z': 137.8, 'y': 118.2, 'Y': 118.2,
+zp = {'u': 859.5, 'g': 466.9, 'r': 278.0, 'i': 185.2, 'z': 137.8, 'y': 118.2, 'w': 245.7, 'Y': 118.2,
       'U': 417.5, 'B': 632.0, 'V': 363.1, 'R': 217.7, 'G': 240.0, 'I': 112.6, 'J': 31.47, 'H': 11.38,
       'K': 3.961, 'S': 536.2, 'D': 463.7, 'A': 412.3, 'F': 4801., 'N': 2119., 'o': 236.2, 'c': 383.3}
 
 #Filter widths (in Angs)
-width = {'u': 458,  'g': 928, 'r': 812, 'i': 894,  'z': 1183, 'y': 628, 'Y': 628,
+width = {'u': 458,  'g': 928, 'r': 812, 'i': 894,  'z': 1183, 'y': 628, 'w': 2560, 'Y': 628,
          'U': 485,  'B': 831, 'V': 827, 'R': 1389, 'G': 4203, 'I': 899, 'J': 1759, 'H': 2041,
          'K': 2800, 'S': 671, 'D': 446, 'A': 821,  'F': 268,  'N': 732, 'o': 2580, 'c': 2280}
 
 #Extinction coefficients in A_lam / E(B-V). Uses York Extinction Solver (http://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/community/YorkExtinctionSolver/coefficients.cgi)
-extco = {'u': 4.786,  'g': 3.587, 'r': 2.471, 'i': 1.798,  'z': 1.403, 'y': 1.228, 'Y': 1.228,
+extco = {'u': 4.786,  'g': 3.587, 'r': 2.471, 'i': 1.798,  'z': 1.403, 'y': 1.228, 'w':2.762, 'Y': 1.228,
          'U': 4.744,  'B': 4.016, 'V': 3.011, 'R': 2.386, 'G': 2.216, 'I': 1.684, 'J': 0.813, 'H': 0.516,
          'K': 0.337, 'S': 8.795, 'D': 9.270, 'A': 6.432,  'F': 8.054,  'N': 8.969, 'o': 2.185, 'c': 3.111}
 
 # Colours for plots
-cols = {'u': 'dodgerblue', 'g': 'g', 'r': 'r', 'i': 'goldenrod', 'z': 'k', 'y': '0.5',
+cols = {'u': 'dodgerblue', 'g': 'g', 'r': 'r', 'i': 'goldenrod', 'z': 'k', 'y': '0.5', 'w': 'firebrick',
         'Y': '0.5', 'U': 'slateblue', 'B': 'b', 'V': 'yellowgreen', 'R': 'crimson', 'G': 'salmon',
         'I': 'chocolate', 'J': 'darkred', 'H': 'orangered', 'K': 'saddlebrown',
         'S': 'mediumorchid', 'D': 'purple', 'A': 'midnightblue',
         'F': 'hotpink', 'N': 'magenta', 'o': 'darkorange', 'c': 'cyan'}
 
 # Maintains order from blue to red effective wavelength
-bandlist = 'FSDNAuUBgcVrRoGiIzyYJHK'
+bandlist = 'FSDNAuUBgcVwrRoGiIzyYJHK'
 
 
 
@@ -882,6 +890,7 @@ if useInt!='y':
 
                 # If user quit polyfit, use easyint
                 if order == 'q':
+                    # This breaks if no overlap in time with ref band
                     tmp1,tmp2 = easyint(lc[i][:,0],lc[i][:,1],lc[i][:,2],lc[ref][:,0],lc[ref][:,1])
                     tmp = list(zip(lc[ref][:,0],tmp1,tmp2))
                     lc_int[i] = np.array(tmp)
@@ -940,14 +949,16 @@ if useInt!='y':
                     # Polynomial method already did an extrapolation, but polynomial can be bad where there is no data to constrain it!
                     # Here we apply the constant colour method too, and user can check what they prefer
 
-                    # Earliest time in band
+                    # Earliest time in band (extrapolating if necessary to get some overlap with ref band)
                     low = min(lc[i][:,0])
+                    low = min(low,max(tmp[:,0]))
                     # Latest time in band
                     up = max(lc[i][:,0])
+                    up = max(up,min(tmp[:,0]))
                     # Colour wrt reference band at earliest and latest interpolated epochs
-                    col1 = tmp[tmp[:,0]>low][0,1] - lc[ref][tmp[:,0]>low][0,1]
-                    col2 = tmp[tmp[:,0]<up][-1,1] - lc[ref][tmp[:,0]<up][-1,1]
-                    # Get extrapolated points in current band by adding colour to reference band
+                    col1 = tmp[tmp[:,0]>=low][0,1] - lc[ref][tmp[:,0]>=low][0,1]
+                    col2 = tmp[tmp[:,0]<=up][-1,1] - lc[ref][tmp[:,0]<=up][-1,1]
+                     # Get extrapolated points in current band by adding colour to reference band
                     early = lc[ref][tmp[:,0]<low][:,1]+col1
                     late = lc[ref][tmp[:,0]>up][:,1]+col2
                     # Compute error as random sum of average error in band plus 0.1 mag for every 10 days extrapolated

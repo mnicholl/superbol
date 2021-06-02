@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 
-version = '1.7 '
+version = '1.8 '
 
 '''
     SUPERBOL: Supernova Bolometric Light Curves
     Written by Matt Nicholl, 2015-2020
 
+    IMPORTANT NOTE: PYTHON 2 VERSION WILL NO LONGER BE UPDATED AFTER V1.8
+    
     Version 1.8 : Fix bug in suppression integral - thanks Sebastian Gomez (MN)
     Version 1.7 : Fix bug introduced in 1.6 where extinction/Swift corrections not always applied (MN)
     Version 1.6 : Save interpolations before applying other corrections (MN)
