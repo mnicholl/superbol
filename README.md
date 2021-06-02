@@ -23,6 +23,8 @@ Maintenance and updates will prioritise python 3 version, but python 2 version a
 
 Versions
 ------------
+    Version 1.10: If no overlap in temporal coverage with reference band, extrapolate to nearest epoch for colour (MN)
+    Version 1.9 : Add w band (MN)
     Version 1.8 : Fix bug in suppression integral - thanks Sebastian Gomez (MN)
     Version 1.7 : Fix bug introduced in 1.6 where extinction/Swift corrections not always applied (MN)
     Version 1.6 : Save interpolations before applying other corrections (MN)
