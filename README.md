@@ -23,6 +23,7 @@ Maintenance and updates will prioritise python 3 version, but python 2 version a
 
 Versions
 ------------
+    Version 1.11: Add NEOWISE bands (MN)
     Version 1.10: If no overlap in temporal coverage with reference band, extrapolate to nearest epoch for colour (MN)
     Version 1.9 : Add w band (MN)
     Version 1.8 : Fix bug in suppression integral - thanks Sebastian Gomez (MN)
@@ -73,7 +74,7 @@ The format of files must be:
     MJD filter1 err1 filter2 err2...
 
 MJD can be replaced by phase or some other time parameter, but must be consistent between files.
-- Important: Bands must be in their common systems: AB mag for ugrizy, Gaia, ATLAS, GALEX; Vega mags for UBVRIJHK and Swift (S=UVW2 D=UVM2 A=UVW1)
+- Important: Bands must be in their common systems: AB mag for ugrizy, Gaia, ATLAS, GALEX; Vega mags for UBVRIJHK, Swift (S=UVW2 D=UVM2 A=UVW1) and NEOWISE (W=W1 Q=W2)
 - Important : Order of filter magnitudes in file must match order of filters in filename.
 
 Computes pseudobolometric light curves by integrating flux over observed filters only ("Lobs") as well as full

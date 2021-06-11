@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 
-version = '1.10'
+version = '1.11'
 
 '''
     SUPERBOL: Supernova Bolometric Light Curves
     Written by Matt Nicholl, 2015-2021
 
+    Version 1.11: Add NEOWISE bands (MN)
     Version 1.10: If no overlap in temporal coverage with reference band, extrapolate to nearest epoch for colour (MN)
     Version 1.9 : Add w band (MN)
     Version 1.8 : Fix bug in suppression integral - thanks Sebastian Gomez (MN)
@@ -263,9 +264,12 @@ def cosmocalc(z):
 #Effective wavelengths (in Angs)
 wle = {'u': 3560,  'g': 4830, 'r': 6260, 'i': 7670, 'z': 8890, 'y': 9600, 'w':5985, 'Y': 9600,
        'U': 3600,  'B': 4380, 'V': 5450, 'R': 6410, 'G': 6730, 'I': 7980, 'J': 12200, 'H': 16300,
-       'K': 21900, 'S': 2030, 'D': 2231, 'A': 2634, 'F': 1516, 'N': 2267, 'o': 6790, 'c': 5330}
+       'K': 21900, 'S': 2030, 'D': 2231, 'A': 2634, 'F': 1516, 'N': 2267, 'o': 6790, 'c': 5330,
+       'W': 33526, 'Q': 46028
+}
 # For Swift UVOT: S=UVW2, D=UVM2, A=UVW1
 # For GALEX: F=FUV, N=NUV
+# For NEOWISE: W=W1, Q=W2
 
 
 # The below zeropoints are needed to convert magnitudes to fluxes
@@ -283,38 +287,43 @@ wle = {'u': 3560,  'g': 4830, 'r': 6260, 'i': 7670, 'z': 8890, 'y': 9600, 'w':59
 # Matt originally listed the following from  Paul Martini's page : http://www.astronomy.ohio-state.edu/~martini/usefuldata.html
 # That is not an original source, for AB mags it simply uses the f_lam =0.1089/(lambda_eff^2) relation, and the effective wavelengths from Fukugita et al.
 
-# ugriz and GALEX NUV/FUV are in AB mag system, UBVRI are Johnson-Cousins in Vega mag, JHK are Glass system Vega mags, and Swift UVOT SDA are in Vega mag system
+# ugriz and GALEX NUV/FUV are in AB mag system, UBVRI are Johnson-Cousins in Vega mag, JHK are Glass system Vega mags, Swift UVOT SDA and WISE WQ are in Vega mag system
 #
 #The values for UBVRIJHK are for the Johnson-Cousins-Glass system and are taken directly from Bessell et al. 1998, A&A, 333, 231 (Paul Martini's page lists these verbatim)
 #Note that these Bessell et al. (1998) values were calculated not from the spectrum of Vega itself, but from a Kurucz model atmosphere of an AOV star.
 #GALEX effective wavelengths from here: http://galex.stsci.edu/gr6/?page=faq
+# WISE data from http://svo2.cab.inta-csic.es/svo/theory/fps3/index.php?mode=browse&gname=WISE&asttype=
 
 # ATLAS values taken from Tonry et al 2018
 
 #All values in 1e-11 erg/s/cm2/Angs
 zp = {'u': 859.5, 'g': 466.9, 'r': 278.0, 'i': 185.2, 'z': 137.8, 'y': 118.2, 'w': 245.7, 'Y': 118.2,
       'U': 417.5, 'B': 632.0, 'V': 363.1, 'R': 217.7, 'G': 240.0, 'I': 112.6, 'J': 31.47, 'H': 11.38,
-      'K': 3.961, 'S': 536.2, 'D': 463.7, 'A': 412.3, 'F': 4801., 'N': 2119., 'o': 236.2, 'c': 383.3}
+      'K': 3.961, 'S': 536.2, 'D': 463.7, 'A': 412.3, 'F': 4801., 'N': 2119., 'o': 236.2, 'c': 383.3,
+      'W': 0.818, 'Q': 0.242}
 
 #Filter widths (in Angs)
 width = {'u': 458,  'g': 928, 'r': 812, 'i': 894,  'z': 1183, 'y': 628, 'w': 2560, 'Y': 628,
          'U': 485,  'B': 831, 'V': 827, 'R': 1389, 'G': 4203, 'I': 899, 'J': 1759, 'H': 2041,
-         'K': 2800, 'S': 671, 'D': 446, 'A': 821,  'F': 268,  'N': 732, 'o': 2580, 'c': 2280}
+         'K': 2800, 'S': 671, 'D': 446, 'A': 821,  'F': 268,  'N': 732, 'o': 2580, 'c': 2280,
+         'W': 6626, 'Q': 10422}
 
 #Extinction coefficients in A_lam / E(B-V). Uses York Extinction Solver (http://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/community/YorkExtinctionSolver/coefficients.cgi)
 extco = {'u': 4.786,  'g': 3.587, 'r': 2.471, 'i': 1.798,  'z': 1.403, 'y': 1.228, 'w':2.762, 'Y': 1.228,
          'U': 4.744,  'B': 4.016, 'V': 3.011, 'R': 2.386, 'G': 2.216, 'I': 1.684, 'J': 0.813, 'H': 0.516,
-         'K': 0.337, 'S': 8.795, 'D': 9.270, 'A': 6.432,  'F': 8.054,  'N': 8.969, 'o': 2.185, 'c': 3.111}
+         'K': 0.337, 'S': 8.795, 'D': 9.270, 'A': 6.432,  'F': 8.054,  'N': 8.969, 'o': 2.185, 'c': 3.111,
+         'W': 0.190, 'Q': 0.127}
 
 # Colours for plots
 cols = {'u': 'dodgerblue', 'g': 'g', 'r': 'r', 'i': 'goldenrod', 'z': 'k', 'y': '0.5', 'w': 'firebrick',
         'Y': '0.5', 'U': 'slateblue', 'B': 'b', 'V': 'yellowgreen', 'R': 'crimson', 'G': 'salmon',
         'I': 'chocolate', 'J': 'darkred', 'H': 'orangered', 'K': 'saddlebrown',
         'S': 'mediumorchid', 'D': 'purple', 'A': 'midnightblue',
-        'F': 'hotpink', 'N': 'magenta', 'o': 'darkorange', 'c': 'cyan'}
+        'F': 'hotpink', 'N': 'magenta', 'o': 'darkorange', 'c': 'cyan',
+        'W': 'forestgreen', 'Q': 'peru'}
 
 # Maintains order from blue to red effective wavelength
-bandlist = 'FSDNAuUBgcVwrRoGiIzyYJHK'
+bandlist = 'FSDNAuUBgcVwrRoGiIzyYJHKWQ'
 
 
 
