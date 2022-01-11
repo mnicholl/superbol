@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 
-version = '1.11'
+version = '1.12'
 
 '''
     SUPERBOL: Supernova Bolometric Light Curves
     Written by Matt Nicholl, 2015-2021
 
+    Version 1.12: Fix bug in default answers to absolute/apparent mags - thanks to Aysha Aamer for catching (MN)
     Version 1.11: Add NEOWISE bands (MN)
     Version 1.10: If no overlap in temporal coverage with reference band, extrapolate to nearest epoch for colour (MN)
     Version 1.9 : Add w band (MN)
@@ -779,11 +780,11 @@ if z<10:
     absol='n'
     if lc[ref][0,1] < 0:
         # If negative mag, must be absolute (but check!)
-        absol = input('> Magnitudes are in Absolute mags, correct?[y] ')
+        absol = input('> Are magnitudes *absolute* mags? [y] ')
         if not absol: absol='y'
     else:
         # If positive mag, must be apparent (but check!)
-        absol = input('> Magnitudes are in Apparent mags, correct?[y] ')
+        absol = input('> Are magnitudes *absolute* mags? [n] ')
         if not absol: absol ='n'
 
     if absol=='y':
@@ -1104,6 +1105,7 @@ if 'S' in lc_int or 'D' in lc_int or 'A' in lc_int:
             lc_int['D'][:,1] -= 1.69
         if 'A' in lc_int:
             lc_int['A'][:,1] -= 1.73
+        print('\n* Converting UV bands to Vega')
 
 # Whether to apply approximate K correction
 doKcorr = 'n'
@@ -1112,7 +1114,7 @@ if skipK == 'n':
     # converting to rest-frame means wavelength /= 1+z and flux *= 1+z. But if input magnitudes were K-corrected, this has already been done implicitly!
     doKcorr = input('\n> Do you want to covert flux and wavelength to rest-frame?\n'
                             '  (skip this step if data are already K-corrected) [n]   ')
-
+    if not doKcorr: doKcorr = 'n'
 
 ######### Now comes the main course - time to build SEDs and integrate luminosity
 
@@ -1154,6 +1156,7 @@ if doKcorr == 'y':
     wlref1 /= (1+z)
     fref *= (1+z)
     bandwidths /= (1+z)
+    print('\n* Converting to rest frame')
 
 # construct some notes for output file
 method = '\n# Methodology:'
