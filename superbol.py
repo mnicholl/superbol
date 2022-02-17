@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 
-version = '1.12'
+version = '2.0'
 
 '''
     SUPERBOL: Supernova Bolometric Light Curves
     Written by Matt Nicholl, 2015-2021
 
+    Version 2.0 : Implement Nicholl+ 2017 / Yan+ 2018 BB absorption function in UV for SED fits, removes need to fit UV/optical separately (MN)
     Version 1.12: Fix bug in default answers to absolute/apparent mags - thanks to Aysha Aamer for catching (MN)
     Version 1.11: Add NEOWISE bands (MN)
     Version 1.10: If no overlap in temporal coverage with reference band, extrapolate to nearest epoch for colour (MN)
@@ -48,7 +49,6 @@ version = '1.12'
     To-do:
         - set error floor for interpolation to ref band error
         - make compatible with other inputs (Open Supernova Catalog, output from psf.py)
-        - include extinction correction
 
     Input files should be called SNname_filters.EXT, eg PTF12dam_ugriz.txt, LSQ14bdq_JHK.dat, etc
     Can have multiple files per SN with different filters in each
@@ -73,15 +73,14 @@ version = '1.12'
         - Save interpolated light curves for reproducability!
      - Fit blackbodies to SED at each epoch (most SNe can be reasonably approximated by blackbody above ~3000 A). In UV, user can choose to:
         - fit SED over all wavelengths with single blackbody
-        - fit separate blackbodies to optical and UV (if UV data exist). Optical fit gives better temperature estimate than single BB. UV fit used only to extrapolate flux for bolometric luminosity.
-        - use a simple prescription for line blanketing at UV wavelengths, defined as L_uv(lambda < cutoff) = L_bb(lambda)*(lambda/cutoff)^x, where x is chosen by user. Cutoff is either set to bluest available band, or if bluest band is >3000A, cutoff = 3000A
+        - use a simple prescription for line blanketing at UV wavelengths, defined as L_uv(lambda < cutoff) = L_bb(lambda)*(lambda/cutoff)^x, where x is chosen by user. User can choose cutoff wavelength and suppression index (Nicholl+ 2017, Yan+ 2018)
     - Numerically integrate observed SEDs, and account for missing UV and NIR flux using blackbody extrapolations. NIR is easy, UV used options described above
     - Save outputs:
         - interpolated_lcs_<SN>_<filters>.txt = multicolour light curves mapped to common times. Footer gives methods of interpolation and extrapolation. If file exists, can be read in future to skip interpolating next time.
         - bol_<SN>_<filters>.txt = main output. Contains pseudobolometric light curve, integrated trapezoidally, and bolometric light curve including the additional BB corrections, and errors on each. Footer gives filters and method of UV fitting.
         - logL_obs_<SN>_<filters>.txt = same pseudobolometric (observed) light curve, in convenient log form
         - logL_obs_<SN>_<filters>.txt = light curve with the BB corrections, in convenient log form
-        - BB_params_<SN>_<filters>.txt = fit parameters for blackbodies: T, R and inferred L from Stefan-Boltzmann law (can compare with direct integration method). If separate optical/UV fit, gives both T_bb (fit to all data) and T_opt (fit only to data >3000 A)
+        - BB_params_<SN>_<filters>.txt = fit parameters for blackbodies: T, R and inferred L from Stefan-Boltzmann law (can compare with direct integration method).
 
     Recommended practice: run once with ALL available filters, and fit missing data as best you can using light curve interpolations. Then re-run choosing only the well-observed filters for the integration. You can compare results and decide for yourself whether you have more belief in the "integrate all filters with light curve extrapolations" method or the "integrate only the well-sampled filters and account for missing flux with blackbodies" method.
     '''
@@ -97,7 +96,11 @@ import sys
 import os
 # If you don't have astropy, can comment this out, and uncomment cosmocalc routine
 from astropy.coordinates import Distance
+from lmfit import Parameters, Model
+import warnings
 
+#suppress warnings
+warnings.filterwarnings('ignore')
 
 # print 'cool' logo
 print('\n    * * * * * * * * * * * * * * * * * * * * *')
@@ -112,7 +115,7 @@ print('    *                  ||                   *')
 print('    *                 ====                  *')
 print('    *                                       *')
 print('    *   Matt Nicholl (2018, RNAAS, 2, 230)  *')
-print('    *                 V'+version+'                 *')
+print('    *                 V'+version+'                *')
 print('    *                                       *')
 print('    * * * * * * * * * * * * * * * * * * * * *\n\n')
 
@@ -120,47 +123,6 @@ print('    * * * * * * * * * * * * * * * * * * * * *\n\n')
 plt.ion()
 
 # Define some functions:
-def bbody(lam,T,R):
-    '''
-    Calculate the corresponding blackbody radiance for a set
-    of wavelengths given a temperature and radiance.
-
-    Parameters
-    ---------------
-    lam: Reference wavelengths in Angstroms
-    T:   Temperature in Kelvin
-    R:   Radius in cm
-
-    Output
-    ---------------
-    Spectral radiance in units of erg/s/Angstrom
-
-    (calculation and constants checked by Sebastian Gomez)
-    '''
-
-    # Planck Constant in cm^2 * g / s
-    h = 6.62607E-27
-    # Speed of light in cm/s
-    c = 2.99792458E10
-
-    # Convert wavelength to cm
-    lam_cm = lam * 1E-8
-
-    # Boltzmann Constant in cm^2 * g / s^2 / K
-    k_B = 1.38064852E-16
-
-    # Calculate Radiance B_lam, in units of (erg / s) / cm ^ 2 / cm
-    exponential = (h * c) / (lam_cm * k_B * T)
-    B_lam = ((2 * np.pi * h * c ** 2) / (lam_cm ** 5)) / (np.exp(exponential) - 1)
-
-    # Multiply by the surface area
-    A = 4*np.pi*R**2
-
-    # Output radiance in units of (erg / s) / Angstrom
-    Radiance = B_lam * A / 1E8
-
-    return Radiance
-
 
 def easyint(x,y,err,xref,yref):
     '''
@@ -1175,7 +1137,7 @@ print('\n######### Step 6: Fit blackbodies and integrate flux #########')
 
 # these are needed to scale and offset SEDs when plotting, to help visibility
 k = 1
-fscale = 4*np.pi*dist**2*zp[ref]*1e-11*10**(-0.4*min(lc[ref][:,1]))
+fscale = 4*np.pi*dist**2*zp[ref]*1e-11*10**(-0.4*min(lc[ref][:,1])) / 1e40
 
 # These lists will be populated with luminosities as we loop through the data and integrate SEDs
 L1arr = []
@@ -1187,37 +1149,76 @@ Lbb_full_err_arr = []
 Lbb_opt_arr = []
 Lbb_opt_err_arr = []
 
-# Set up some parameters for the BB fits and integrations:
-# First, if there are sufficient UV data, best to fit UV and optical separately
-# Optical fit gives better colour temperature by excluding line-blanketed region
-# UV fit used only for extrapolating bluewards of bluest band
-sep = 'n'
-# If multiple UV filters
-if len(wlref[wlref<3000])>2:
-    # Prompt for separate fits
-    sep = input('\n> Multiple UV filters detected! Fitting optical and UV separately can\n give better estimates of continuum temperature and UV flux\n Fit separately? [y] ')
-    # Default is yes
-    if not sep: sep = 'y'
-else:
-    # Cannot do separate UV fit if no UV data!
-    sep = 'n'
 
-# If no UV data or user chooses not to do separate fit, allow for suppression in blue relative to BB
-# -  If UV data, suppress to the blue of the bluest band
-# -  If no UV data, start suppression at 3000A
+# Set up some parameters for absorbed BB fits and integrations:
 # Functional form comes from Nicholl, Guillochon & Berger 2017 / Yan et al 2018:
 # - power law in (lambda / lambda_cutoff) joins smoothly to BB at lambda_cutoff
-bluecut = 1
 # These default parameters give an unattenuated blackbody
+bluecut = 1
 sup = 0
-if sep == 'n':
-    # cutoff wavelength is either the bluest band (if data constrain SED below 3000A), or else fixed at 3000A (where deviation from BB usually starts becoming clear)
-    bluecut = float(min(wlref[0],3000))
-    # User specifies degree of suppression - higher polynomial order takes flux to zero faster. Value of x~1 is recommended for most cases
-    sup = input('\n> Suppression index for BB flux bluewards of '+str(bluecut)+'A?\n  i.e. L_uv(lam) = L_bb(lam)*(lam/'+str(bluecut)+')^x\n [x=0 (i.e. no suppression)] ')
-    # Default is no suppression
-    if not sup: sup = 0
+
+do_absorb = input('\n> Absorbed blackbody L_uv(lam) = L_bb(lam)*(lam/lam_max)^x\n can give better fit in UV. Apply absorption? [y]   ')
+if not do_absorb: do_absorb = 'y'
+
+if do_absorb in ('y','yes'):
+    bluecut = input('\n> Absorb below which wavelength? [3000A]   ')
+    if not bluecut: bluecut = 3000
+    bluecut = float(bluecut)
+    
+    sup = input('\n> Suppression index for BB flux bluewards of '+str(bluecut)+'A? [1]   ')
+    if not sup: sup = 1
     sup = float(sup)
+
+# NOTE: at some point should give option to make these free parameters...
+
+
+def bbody_absorbed(x,T,R,lambda_cutoff=bluecut,alpha=sup):
+    '''
+    Calculate the blackbody radiance for a set
+    of wavelengths given a temperature and radiance.
+    Modified in the UV
+
+    Parameters
+    ---------------
+    lam: Reference wavelengths in Angstroms
+    T:   Temperature in Kelvin
+    R:   Radius in cm
+
+    Output
+    ---------------
+    Spectral radiance in units of erg/s/Angstrom
+
+    (calculation and constants checked by Sebastian Gomez)
+    '''
+
+    T *= 1000
+    R *= 1e15
+
+    # Planck Constant in cm^2 * g / s
+    h = 6.62607E-27
+    # Speed of light in cm/s
+    c = 2.99792458E10
+
+    # Convert wavelength to cm
+    lam_cm = x * 1E-8
+
+    # Boltzmann Constant in cm^2 * g / s^2 / K
+    k_B = 1.38064852E-16
+
+    # Calculate Radiance B_lam, in units of (erg / s) / cm ^ 2 / cm
+    exponential = (h * c) / (lam_cm * k_B * T)
+    B_lam = ((2 * np.pi * h * c ** 2) / (lam_cm ** 5)) / (np.exp(exponential) - 1)
+    B_lam[x <= lambda_cutoff] *= (x[x <= lambda_cutoff]/lambda_cutoff)**alpha
+
+    # Multiply by the surface area
+    A = 4*np.pi*R**2
+
+    # Output radiance in units of (erg / s) / Angstrom
+    Radiance = B_lam * A / 1E8
+
+    return Radiance / 1e40
+
+
 
 # Open output files for bolometric light curve and blackbody parameters
 out1 = open(outdir+'/bol_'+sn+'_'+filters+'.txt','w')
@@ -1228,32 +1229,29 @@ out1.write('# ph\tLobs\terr\tL+BB\terr\t\n\n')
 
 # Write header for BB params file - if separate UV/optical fits, need another set of columns for the optical-only filts
 # T_bb etc are fits to all data, T_opt are fits to data at lambda>3000A (i.e. not affected by line blanketing)
-if sep=='y':
-    out2.write('# ph\tT_bb\terr\tR_bb\terr\tL_bb\terr\tT_opt\terr\tR_opt\terr\tL_opt\terr\n\n')
-else:
-    out2.write('# ph\tT_bb\terr\tR_bb\terr\tL_bb\terr\n\n')
+out2.write('# ph\tT_bb\terr\tR_bb\terr\tL_bb\terr\n\n')
 
 # Display various lines for different fitting assumptions, tell user here rather than cluttering figure legend
 print('\n*** Fitting Blackbodies to SED ***')
-print('\n* Solid line = blackbody fit for flux extrapolation')
+print('\n* Solid line = blackbody fit with assumed suppression')
 
-if sep=='y':
-    # show separate fits to UV and optical, if they exist, and tell output file
-    print('* Dashed lines = separate fit to optical and UV for T and R estimates')
-    method += '\n# Separate BB fits above/below 3000A'
-
-if sup!=0:
     # plot suppression if used, and tell output file where suppression began and what was the index
-    print('* Dotted lines = UV flux with assumed blanketing')
-    method += '\n# BB fit below '+str(bluecut)+'A suppressed by factor (lamda/'+str(bluecut)+')^'+str(sup)
+print('* Dotted lines = bbody without blanketing')
 
-if sep!='y' and sup==0:
-    # if a single un-suppressed BB was used, add this to output file
-    method += '\n# Single BB fit to all wavelengths, with no UV suppression'
+method += '\n# BB fit below '+str(bluecut)+'A suppressed by factor (lamda/'+str(bluecut)+')^'+str(sup)
 
 # New figure to display SEDs
 plt.figure(2,(8,8))
 plt.clf()
+
+
+# For lmfit
+bbmod = Model(bbody_absorbed)
+fit_params = Parameters()
+fit_params.add('T', value=1, max=100, min=0.1)
+fit_params.add('R', value=1, max=10, min=0.01)
+fit_params.add('lambda_cutoff', value=bluecut, vary=False)
+fit_params.add('alpha', value=sup, vary=False)
 
 # Loop through reference epochs
 for i in range(len(phase)):
@@ -1275,19 +1273,28 @@ for i in range(len(phase)):
     flux1 = np.append(flux1,0)
 
     # Fit blackbody to SED (the one that is not padded with zeros)
-    BBparams, covar = curve_fit(bbody,wlref,flux,p0=(10000,1e15),sigma=ferr)
+    
+    # Using scipy
+    BBparams, covar = curve_fit(bbody_absorbed,wlref,flux/1e40,p0=(10,2),sigma=ferr/1e40)
     # Get temperature and radius, with errors, from fit
     T1 = BBparams[0]
-    T1_err = np.sqrt(np.diag(covar))[0]
+    T1_err = min(np.sqrt(np.diag(covar))[0],T1)
     R1 = np.abs(BBparams[1])
-    R1_err = np.sqrt(np.diag(covar))[1]
+    R1_err = min(np.sqrt(np.diag(covar))[1],R1)
+
+#    # Using lmfit
+#    result = bbmod.fit(flux/1e40,x=wlref,params=fit_params,weights=1e40/ferr)
+#    T1 = result.params['T'].value
+#    T1_err = min(result.params['T'].stderr,T1)
+#    R1 = result.params['R'].value
+#    R1_err = min(result.params['R'].stderr,R1)
+
 
     # Plot SEDs, offset for clarity
     plt.figure(2)
-    plt.errorbar(wlref,flux-fscale*k,ferr,fmt='o',color=cols[filters[k%len(filters)]],label='%.1f' %ph)
-    plt.plot(np.arange(100,25000),bbody(np.arange(100,25000),T1,R1)-fscale*k,color=cols[filters[k%len(filters)]],linestyle='-')
-    # Plot UV SED with suppression (matches blackbody if suppression set to zero)
-    plt.plot(np.arange(100,bluecut),bbody(np.arange(100,bluecut),T1,R1)*(np.arange(100,bluecut)/bluecut)**sup-fscale*k,color=cols[filters[k%len(filters)]],linestyle=':')
+    plt.errorbar(wlref,flux/1e40-fscale*k,ferr/1e40,fmt='o',color=cols[filters[k%len(filters)]],label='%.1f' %ph)
+    plt.plot(np.arange(1,25000),bbody_absorbed(np.arange(1,25000),T1,R1,bluecut,sup)-fscale*k,color=cols[filters[k%len(filters)]],linestyle='-')
+    plt.plot(np.arange(1,25000),bbody_absorbed(np.arange(1,25000),T1,R1,1,0)-fscale*k,color=cols[filters[k%len(filters)]],linestyle=':')
 
     # Get pseudobolometric luminosity by trapezoidal integration, with flux set to zero outside of observed bands
     L1 = itg.trapz(flux1[np.argsort(wlref1)],wlref1[np.argsort(wlref1)])
@@ -1298,64 +1305,19 @@ for i in range(len(phase)):
     L1err_arr.append(L1_err)
 
     # Calculate luminosity using alternative method of Stefan-Boltzmann, and T and R from fit
-    L1bb = 4*np.pi*R1**2*5.67e-5*T1**4
+    L1bb = 4*np.pi*(R1*1e15)**2*5.67e-5*(T1*1e3)**4
     L1bb_err = L1bb*np.sqrt((2*R1_err/R1)**2+(4*T1_err/T1)**2)
 
     # Get UV luminosity (i.e. bluewards of bluest band)
-    Luv = itg.trapz(bbody(np.arange(100,bluecut),T1,R1)*(np.arange(100,bluecut)/bluecut)**sup,np.arange(100,bluecut))
-    if bluecut < wlref[0]:
-        # If no UV data and cutoff defaults to 3000A, need to further integrate (unabsorbed) BB from cutoff up to the bluest band
-        Luv += itg.trapz(bbody(np.arange(bluecut,wlref[0]),T1,R1),np.arange(bluecut,wlref[0]))
-    # Use uncertainty in BB fit T and R to estimate error in UV flux
+    Luv = itg.trapz(bbody_absorbed(np.arange(1,bluecut),T1,R1,bluecut,sup),np.arange(1,bluecut)) * 1e40
     Luv_err = Luv*np.sqrt((2*R1_err/R1)**2+(4*T1_err/T1)**2)
 
     # NIR luminosity from integrating blackbody above reddest band
-    Lnir = itg.trapz(bbody(np.arange(wlref[-1],25000),T1,R1),np.arange(wlref[-1],25000))
+    Lnir = itg.trapz(bbody_absorbed(np.arange(wlref[-1],25000),T1,R1,bluecut,sup),np.arange(wlref[-1],25000)) * 1e40
     Lnir_err = Lnir*np.sqrt((2*R1_err/R1)**2+(4*T1_err/T1)**2)
 
-    # Treating UV and optical separately if user so decided:
-    if sep=='y':
-        # Used to occasionally crash, wrap in try statement
-        try:
-            # Fit BB only to data above 3000A
-            BBparams, covar = curve_fit(bbody,wlref[wlref>3000],flux[wlref>3000],p0=(10000,1e15),sigma=ferr[wlref>3000])
-            # This gives better estimate of optical colour temperature
-            Topt = BBparams[0]
-            Topt_err = np.sqrt(np.diag(covar))[0]
-            Ropt = np.abs(BBparams[1])
-            Ropt_err = np.sqrt(np.diag(covar))[1]
-            # Calculate luminosity predicted by Stefan-Boltzmann law for optical T and R
-            L2bb = 4*np.pi*Ropt**2*5.67e-5*Topt**4
-            L2bb_err = L2bb*np.sqrt((2*Ropt_err/Ropt)**2+(4*Topt_err/Topt)**2)
 
-            # Use this BB fit to get NIR extrapolation, rather than the fit that included UV
-            Lnir = itg.trapz(bbody(np.arange(wlref[-1],25000),Topt,Ropt),np.arange(wlref[-1],25000))
-            Lnir_err = Lnir*np.sqrt((2*Ropt_err/Ropt)**2+(4*Topt_err/Topt)**2)
-
-            # Now do the separate fit to the UV
-            # Because of line blanketing, this temperature and radius are not very meaningful physically, but shape of function useful for extrapolating flux bluewards of bluest band
-            BBparams, covar = curve_fit(bbody,wlref[wlref<4000],flux[wlref<4000],p0=(10000,1e15),sigma=ferr[wlref<4000])
-            Tuv = BBparams[0]
-            Tuv_err = np.sqrt(np.diag(covar))[0]
-            Ruv = np.abs(BBparams[1])
-            Ruv_err = np.sqrt(np.diag(covar))[1]
-            Luv = itg.trapz(bbody(np.arange(100,wlref[0]),Tuv,Ruv),np.arange(100,wlref[0]))
-            Luv_err = Luv*np.sqrt((2*Ruv_err/Ruv)**2+(4*Tuv_err/Tuv)**2)
-
-            # Plot UV- and optical-only BBs for comparison to single BB
-            plt.figure(2)
-            plt.plot(np.arange(3000,25000),bbody(np.arange(3000,25000),Topt,Ropt)-fscale*k,color=cols[filters[k%len(filters)]],linestyle='--',linewidth=1.5)
-            plt.plot(np.arange(100,3600),bbody(np.arange(100,3600),Tuv,Ruv)-fscale*k,color=cols[filters[k%len(filters)]],linestyle='-.',linewidth=1.5)
-
-        except:
-            # If UV fits failed, just write out the single BB fits
-            Topt,Topt_err,Ropt,Ropt_err,L2bb,L2bb_err = np.nan, np.nan, np.nan, np.nan, np.nan, np.nan
-
-        # Write out BB params, and optical-only BB params, to file
-        out2.write('%.2f\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\n' %(ph,T1,T1_err,R1,R1_err,L1bb,L1bb_err,Topt,Topt_err,Ropt,Ropt_err,L2bb,L2bb_err))
-    else:
-        # If separate fits were not used, just write out the single BB fits
-        out2.write('%.2f\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\n' %(ph,T1,T1_err,R1,R1_err,L1bb,L1bb_err))
+    out2.write('%.2f\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\t%.2e\n' %(ph,T1*1e3,T1_err*1e3,R1*1e15,R1_err*1e15,L1bb,L1bb_err))
 
     # Estimate total bolometric luminosity as integration over observed flux, plus corrections in UV and NIR from the blackbody extrapolations
     # If separate UV fit was used, Luv comes from this fit and Lnir comes from optical-only fit
@@ -1373,7 +1335,6 @@ for i in range(len(phase)):
     plt.draw()
     plt.xlabel('Wavelength (Ang)')
     plt.ylabel(r'$\mathit{L}_\lambda$ + constant')
-    plt.legend(numpoints=1,ncol=2,fontsize=16,frameon=True)
 
     # Counter shifts down next SED on plot for visibility
     k += 1
@@ -1382,13 +1343,12 @@ plt.figure(2)
 plt.yticks([])
 plt.xlim(min(wlref)-2000,max(wlref)+3000)
 plt.tight_layout(pad=0.5)
+plt.legend(numpoints=1,ncol=2,fontsize=16,frameon=True,loc='upper right')
 
 # Add methodologies and keys to output files so user knows which approximations were made in this run
 out1.write('\n#KEY\n# Lobs = integrate observed fluxes with no BB fit\n# L+BB = observed flux + BB fit extrapolation')
 out1.write('\n# See logL_obs_'+sn+'_'+filters+'.txt and logL_bb_'+sn+'_'+filters+'.txt for simple LC files')
 out1.write(method)
-out2.write('\n#KEY\n# _bb = blackbody fit to all wavelengths, _opt = fit only data redwards of 3000A\n# L_bb = luminosity from Stefan-Boltzman; L_opt = same but using T_opt and R_opt')
-out2.write('\n# (in contrast, bol_'+sn+'_'+filters+'.txt file contains trapezoidal integration over observed wavelengths)')
 
 # Close output files
 out1.close()

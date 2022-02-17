@@ -23,6 +23,8 @@ Maintenance and updates will prioritise python 3 version, but python 2 version a
 
 Versions
 ------------
+    Version 2.0 : Implement Nicholl+ 2017 / Yan+ 2018 BB absorption function in UV for SED fits, removes need to fit UV/optical separately (MN)
+    Version 1.12: Fix bug in default answers to absolute/apparent mags - thanks to Aysha Aamer for catching (MN)
     Version 1.11: Add NEOWISE bands (MN)
     Version 1.10: If no overlap in temporal coverage with reference band, extrapolate to nearest epoch for colour (MN)
     Version 1.9 : Add w band (MN)
@@ -107,14 +109,8 @@ Steps:
         Large extrapolations = large uncertainties!
     - Save interpolated light curves for reproducability
  - Fit blackbodies to SED at each epoch (most SNe can be reasonably approximated by blackbody above ~3000 Angstroms). In UV, user can choose to:
-    - fit SED over all wavelengths with single blackbody
-    - fit separate blackbodies to optical and UV (if UV data exist).
-        Optical fit gives better temperature estimate than single BB.
-         UV fit used only to extrapolate flux for bolometric luminosity.
-    - use a simple prescription for line blanketing at UV wavelengths,
-        defined as L_uv(lambda < cutoff) = L_bb(lambda)*(lambda/cutoff)^x, where x is chosen by user.
-        Cutoff is either set to bluest available band, or if bluest band is >3000A, cutoff = 3000A
-- Numerically integrate observed SEDs, and account for missing UV and NIR flux using blackbody extrapolations.
+    - use a simple prescription for line blanketing at UV wavelengths, defined as L_uv(lambda < cutoff) = L_bb(lambda)*(lambda/cutoff)^x, where x is chosen by user. User can choose cutoff wavelength and suppression index (Nicholl+ 2017, Yan+ 2018)
+ - Numerically integrate observed SEDs, and account for missing UV and NIR flux using blackbody extrapolations.
     NIR is easy, UV uses options described above
 
 Outputs
@@ -134,7 +130,6 @@ Outputs
     - light curve with the BB corrections, in convenient log form
 - BB_params_<SN>_<filters>.txt
     - fit parameters for blackbodies: T, R and inferred L from Stefan-Boltzmann law (can compare with direct integration method).
-    - If separate optical/UV fit, gives both T_bb (fit to all data) and T_opt (fit only to data >3000 A)
 
 
 Recommended practice: run once with ALL available filters, and fit missing
@@ -148,7 +143,6 @@ method.
     To-do:
         - set error floor for interpolation to ref band error
         - make compatible with other inputs (Open Supernova Catalog, output from psf.py)
-        - include extinction correction
 
 
 # Notes on various filter systems (courtesy Stephen Smartt)
