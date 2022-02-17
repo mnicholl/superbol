@@ -96,7 +96,7 @@ import sys
 import os
 # If you don't have astropy, can comment this out, and uncomment cosmocalc routine
 from astropy.coordinates import Distance
-from lmfit import Parameters, Model
+#from lmfit import Parameters, Model
 import warnings
 
 #suppress warnings
@@ -1245,13 +1245,13 @@ plt.figure(2,(8,8))
 plt.clf()
 
 
-# For lmfit
-bbmod = Model(bbody_absorbed)
-fit_params = Parameters()
-fit_params.add('T', value=1, max=100, min=0.1)
-fit_params.add('R', value=1, max=10, min=0.01)
-fit_params.add('lambda_cutoff', value=bluecut, vary=False)
-fit_params.add('alpha', value=sup, vary=False)
+## For lmfit - hasn't worked yet
+#bbmod = Model(bbody_absorbed)
+#fit_params = Parameters()
+#fit_params.add('T', value=1, max=100, min=0.1)
+#fit_params.add('R', value=1, max=10, min=0.01)
+#fit_params.add('lambda_cutoff', value=bluecut, vary=False)
+#fit_params.add('alpha', value=sup, vary=False)
 
 # Loop through reference epochs
 for i in range(len(phase)):
