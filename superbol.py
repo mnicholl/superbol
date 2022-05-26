@@ -4,7 +4,7 @@ version = '2.0'
 
 '''
     SUPERBOL: Supernova Bolometric Light Curves
-    Written by Matt Nicholl, 2015-2021
+    Written by Matt Nicholl, 2015-2022
 
     Version 2.0 : Implement Nicholl+ 2017 / Yan+ 2018 BB absorption function in UV for SED fits, removes need to fit UV/optical separately (MN)
     Version 1.12: Fix bug in default answers to absolute/apparent mags - thanks to Aysha Aamer for catching (MN)
@@ -152,6 +152,8 @@ def easyint(x,y,err,xref,yref):
     # for extrapolations, apply mean error for interpolated data, plus 0.01 mag per day of extrapolation (added in quadrature)
     errout[xref<min(x)] = np.sqrt((min(x) - xref[xref<min(x)])**2/1.e4 + np.mean(err)**2)
     errout[xref>max(x)] = np.sqrt((xref[xref>max(x)] - max(x))**2/1.e4 + np.mean(err)**2)
+    # Limit to an error of 1.75 mag (factor 5 in flux)
+    errout[errout>1.75] = 1.75
 
     return yout,errout
 
@@ -936,6 +938,8 @@ if useInt!='y':
                     # Compute error as random sum of average error in band plus 0.1 mag for every 10 days extrapolated
                     tmp[:,2][tmp[:,0]<low] = np.sqrt((low - tmp[:,0][tmp[:,0]<low])**2/1.e4 + np.mean(lc[i][:,2])**2)
                     tmp[:,2][tmp[:,0]>up] = np.sqrt((tmp[:,0][tmp[:,0]>up] - up)**2/1.e4 + np.mean(lc[i][:,2])**2)
+                    # Limit to an error of 1.75 mag (factor 5 in flux)
+                    tmp[:,2][tmp[:,2]>1.75] = 1.75
 
                     # Plot light curve from polynomial fit
                     plt.errorbar(tmp[:,0],tmp[:,1],fmt='s',markersize=12,mfc='none',markeredgewidth=3,markeredgecolor=cols[i],label='Polynomial')
@@ -1309,7 +1313,7 @@ for i in range(len(phase)):
     L1bb_err = L1bb*np.sqrt((2*R1_err/R1)**2+(4*T1_err/T1)**2)
 
     # Get UV luminosity (i.e. bluewards of bluest band)
-    Luv = itg.trapz(bbody_absorbed(np.arange(1,bluecut),T1,R1,bluecut,sup),np.arange(1,bluecut)) * 1e40
+    Luv = itg.trapz(bbody_absorbed(np.arange(1,wlref[0]),T1,R1,bluecut,sup),np.arange(1,wlref[0])) * 1e40
     Luv_err = Luv*np.sqrt((2*R1_err/R1)**2+(4*T1_err/T1)**2)
 
     # NIR luminosity from integrating blackbody above reddest band
