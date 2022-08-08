@@ -6,6 +6,7 @@ version = '2.0'
     SUPERBOL: Supernova Bolometric Light Curves
     Written by Matt Nicholl, 2015-2022
 
+    Version 2.1 : Allow limit to MJDs to slice up light curve after plotting. Also duplicate Gaia G == E in case computer can't differentiate _g.txt and _G.txt
     Version 2.0 : Implement Nicholl+ 2017 / Yan+ 2018 BB absorption function in UV for SED fits, removes need to fit UV/optical separately (MN)
     Version 1.12: Fix bug in default answers to absolute/apparent mags - thanks to Aysha Aamer for catching (MN)
     Version 1.11: Add NEOWISE bands (MN)
@@ -228,13 +229,14 @@ def cosmocalc(z):
 
 #Effective wavelengths (in Angs)
 wle = {'u': 3560,  'g': 4830, 'r': 6260, 'i': 7670, 'z': 8890, 'y': 9600, 'w':5985, 'Y': 9600,
-       'U': 3600,  'B': 4380, 'V': 5450, 'R': 6410, 'G': 6730, 'I': 7980, 'J': 12200, 'H': 16300,
+       'U': 3600,  'B': 4380, 'V': 5450, 'R': 6410, 'G': 6730, 'E': 6730, 'I': 7980, 'J': 12200, 'H': 16300,
        'K': 21900, 'S': 2030, 'D': 2231, 'A': 2634, 'F': 1516, 'N': 2267, 'o': 6790, 'c': 5330,
        'W': 33526, 'Q': 46028
 }
 # For Swift UVOT: S=UVW2, D=UVM2, A=UVW1
 # For GALEX: F=FUV, N=NUV
 # For NEOWISE: W=W1, Q=W2
+# For Gaia: E=G
 
 
 # The below zeropoints are needed to convert magnitudes to fluxes
@@ -263,32 +265,32 @@ wle = {'u': 3560,  'g': 4830, 'r': 6260, 'i': 7670, 'z': 8890, 'y': 9600, 'w':59
 
 #All values in 1e-11 erg/s/cm2/Angs
 zp = {'u': 859.5, 'g': 466.9, 'r': 278.0, 'i': 185.2, 'z': 137.8, 'y': 118.2, 'w': 245.7, 'Y': 118.2,
-      'U': 417.5, 'B': 632.0, 'V': 363.1, 'R': 217.7, 'G': 240.0, 'I': 112.6, 'J': 31.47, 'H': 11.38,
+      'U': 417.5, 'B': 632.0, 'V': 363.1, 'R': 217.7, 'G': 240.0, 'E': 240.0, 'I': 112.6, 'J': 31.47, 'H': 11.38,
       'K': 3.961, 'S': 536.2, 'D': 463.7, 'A': 412.3, 'F': 4801., 'N': 2119., 'o': 236.2, 'c': 383.3,
       'W': 0.818, 'Q': 0.242}
 
 #Filter widths (in Angs)
 width = {'u': 458,  'g': 928, 'r': 812, 'i': 894,  'z': 1183, 'y': 628, 'w': 2560, 'Y': 628,
-         'U': 485,  'B': 831, 'V': 827, 'R': 1389, 'G': 4203, 'I': 899, 'J': 1759, 'H': 2041,
+         'U': 485,  'B': 831, 'V': 827, 'R': 1389, 'G': 4203, 'E': 4203, 'I': 899, 'J': 1759, 'H': 2041,
          'K': 2800, 'S': 671, 'D': 446, 'A': 821,  'F': 268,  'N': 732, 'o': 2580, 'c': 2280,
          'W': 6626, 'Q': 10422}
 
 #Extinction coefficients in A_lam / E(B-V). Uses York Extinction Solver (http://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/community/YorkExtinctionSolver/coefficients.cgi)
 extco = {'u': 4.786,  'g': 3.587, 'r': 2.471, 'i': 1.798,  'z': 1.403, 'y': 1.228, 'w':2.762, 'Y': 1.228,
-         'U': 4.744,  'B': 4.016, 'V': 3.011, 'R': 2.386, 'G': 2.216, 'I': 1.684, 'J': 0.813, 'H': 0.516,
+         'U': 4.744,  'B': 4.016, 'V': 3.011, 'R': 2.386, 'G': 2.216, 'E': 2.216, 'I': 1.684, 'J': 0.813, 'H': 0.516,
          'K': 0.337, 'S': 8.795, 'D': 9.270, 'A': 6.432,  'F': 8.054,  'N': 8.969, 'o': 2.185, 'c': 3.111,
          'W': 0.190, 'Q': 0.127}
 
 # Colours for plots
 cols = {'u': 'dodgerblue', 'g': 'g', 'r': 'r', 'i': 'goldenrod', 'z': 'k', 'y': '0.5', 'w': 'firebrick',
-        'Y': '0.5', 'U': 'slateblue', 'B': 'b', 'V': 'yellowgreen', 'R': 'crimson', 'G': 'salmon',
+        'Y': '0.5', 'U': 'slateblue', 'B': 'b', 'V': 'yellowgreen', 'R': 'crimson', 'G': 'salmon', 'E': 'salmon',
         'I': 'chocolate', 'J': 'darkred', 'H': 'orangered', 'K': 'saddlebrown',
         'S': 'mediumorchid', 'D': 'purple', 'A': 'midnightblue',
         'F': 'hotpink', 'N': 'magenta', 'o': 'darkorange', 'c': 'cyan',
         'W': 'forestgreen', 'Q': 'peru'}
 
 # Maintains order from blue to red effective wavelength
-bandlist = 'FSDNAuUBgcVwrRoGiIzyYJHKWQ'
+bandlist = 'FSDNAuUBgcVwrRoGEiIzyYJHKWQ'
 
 
 
@@ -460,12 +462,8 @@ for i in filts2:
             if wle[j]>wle[i]:
                 ftmp += j
         filters = ftmp
-
-# This ends the data import
-
-
-print('\n######### Step 2: reference band for phase info ##########')
-
+        
+        
 
 plt.figure(1,(8,6))
 plt.clf()
@@ -483,6 +481,44 @@ plt.ylabel('Magnitude')
 plt.legend(numpoints=1,fontsize=16,ncol=2,frameon=True)
 plt.tight_layout(pad=0.5)
 plt.draw()
+
+
+limitMJDs = input('\n> Limit time range to use? [n] ')
+if not limitMJDs: limitMJDs = 'n'
+
+if limitMJDs == 'y':
+    
+    MJDmin = input('Min time to use [0] ')
+    if not MJDmin: MJDmin = 0
+    MJDmin = float(MJDmin)
+    
+    MJDmax = input('Max time to use [1000000] ')
+    if not MJDmax: MJDmax = 1000000
+    MJDmax = float(MJDmax)
+    
+    for i in lc:
+        lc[i] = lc[i][lc[i][:,0]>MJDmin]
+        lc[i] = lc[i][lc[i][:,0]<MJDmax]
+
+plt.clf()
+
+# Plot all light curves on same axes
+for i in filters:
+    plt.errorbar(lc[i][:,0],lc[i][:,1],lc[i][:,2],fmt='o',color=cols[i],label=i)
+
+plt.gca().invert_yaxis()
+plt.xlabel(xlab)
+plt.ylabel('Magnitude')
+plt.legend(numpoints=1,fontsize=16,ncol=2,frameon=True)
+plt.tight_layout(pad=0.5)
+plt.draw()
+
+
+# This ends the data import
+
+
+print('\n######### Step 2: reference band for phase info ##########')
+
 
 # Loop through dictionary and determine which filter has the most data
 ref1 = 0
