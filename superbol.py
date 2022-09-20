@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 
-version = '2.0'
+version = '2.2'
 
 '''
     SUPERBOL: Supernova Bolometric Light Curves
     Written by Matt Nicholl, 2015-2022
 
-    Version 2.1 : Allow limit to MJDs to slice up light curve after plotting. Also duplicate Gaia G == E in case computer can't differentiate _g.txt and _G.txt
+    Version 2.2 : Prompt user for initial guess in temperature and radius for the first epoch. Subsequent epochs use T/R from previous step as the initial guess
+    Version 2.1 : Allow limit to MJDs to slice up light curve after plotting. Also duplicate Gaia G == E in case computer can't differentiate _g.txt and _G.txt (MN)
     Version 2.0 : Implement Nicholl+ 2017 / Yan+ 2018 BB absorption function in UV for SED fits, removes need to fit UV/optical separately (MN)
     Version 1.12: Fix bug in default answers to absolute/apparent mags - thanks to Aysha Aamer for catching (MN)
     Version 1.11: Add NEOWISE bands (MN)
@@ -1212,6 +1213,20 @@ if do_absorb in ('y','yes'):
 # NOTE: at some point should give option to make these free parameters...
 
 
+T_init = input('\n> Initial guess for starting temperature [10000 K]?   ')
+if not T_init: T_init = 10000
+T_init = float(T_init)
+
+T_init /= 1000
+
+
+R_init = input('\n> Initial guess for starting radius [1.0e15 cm]?   ')
+if not R_init: R_init = 1.0e15
+R_init = float(R_init)
+
+R_init /= 1e15
+
+
 def bbody_absorbed(x,T,R,lambda_cutoff=bluecut,alpha=sup):
     '''
     Calculate the blackbody radiance for a set
@@ -1221,8 +1236,8 @@ def bbody_absorbed(x,T,R,lambda_cutoff=bluecut,alpha=sup):
     Parameters
     ---------------
     lam: Reference wavelengths in Angstroms
-    T:   Temperature in Kelvin
-    R:   Radius in cm
+    T:   Temperature in 10^3 Kelvin
+    R:   Radius in 10^15 cm
 
     Output
     ---------------
@@ -1315,12 +1330,15 @@ for i in range(len(phase)):
     # Fit blackbody to SED (the one that is not padded with zeros)
     
     # Using scipy
-    BBparams, covar = curve_fit(bbody_absorbed,wlref,flux/1e40,p0=(10,2),sigma=ferr/1e40)
+    BBparams, covar = curve_fit(bbody_absorbed,wlref,flux/1e40,p0=(T_init,R_init),sigma=ferr/1e40)
     # Get temperature and radius, with errors, from fit
     T1 = BBparams[0]
     T1_err = min(np.sqrt(np.diag(covar))[0],T1)
     R1 = np.abs(BBparams[1])
     R1_err = min(np.sqrt(np.diag(covar))[1],R1)
+    
+    T_init = T1
+    R_init = R1
 
 #    # Using lmfit
 #    result = bbmod.fit(flux/1e40,x=wlref,params=fit_params,weights=1e40/ferr)

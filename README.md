@@ -23,6 +23,8 @@ Maintenance and updates will prioritise python 3 version, but python 2 version a
 
 Versions
 ------------
+    Version 2.2 : Prompt user for initial guess in temperature and radius for the first epoch. Subsequent epochs use T/R from previous step as the initial guess
+    Version 2.1 : Allow limit to MJDs to slice up light curve after plotting. Also duplicate Gaia G == E in case computer can't differentiate _g.txt and _G.txt (MN)
     Version 2.0 : Implement Nicholl+ 2017 / Yan+ 2018 BB absorption function in UV for SED fits, removes need to fit UV/optical separately (MN)
     Version 1.12: Fix bug in default answers to absolute/apparent mags - thanks to Aysha Aamer for catching (MN)
     Version 1.11: Add NEOWISE bands (MN)
