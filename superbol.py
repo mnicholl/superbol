@@ -1386,7 +1386,7 @@ for i in range(len(phase)):
     # convert magnitudes to physical fluxes using zeropoints and distance
     flux = 4*np.pi*dist**2*fref*10**(-0.4*mags)
     # convert mag errors to flux errors
-    ferr = 2.5/np.log(10) * flux * errs
+    ferr = np.log(10)/2.5 * flux * errs
     # Set flux to zero at red and blue extrema matching wlref1
     flux1 = np.insert(flux,0,0)
     flux1 = np.append(flux1,0)
