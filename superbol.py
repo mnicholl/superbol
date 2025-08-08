@@ -1419,7 +1419,7 @@ for i in range(len(phase)):
     plt.plot(np.arange(1,25000),bbody_absorbed(np.arange(1,25000),T1,R1,1,0)-fscale*k,color=cols[filters[k%len(filters)]],linestyle=':')
 
     # Get pseudobolometric luminosity by trapezoidal integration, with flux set to zero outside of observed bands
-    L1 = itg.trapz(flux1[np.argsort(wlref1)],wlref1[np.argsort(wlref1)])
+    L1 = itg.trapezoid(flux1[np.argsort(wlref1)],wlref1[np.argsort(wlref1)])
     # Use flux errors and bandwidths to get luminosity error
     L1_err = np.sqrt(np.sum((bandwidths*ferr)**2))
     # Add luminosity to array (i.e. pseudobolometric light curve)
@@ -1431,11 +1431,11 @@ for i in range(len(phase)):
     L1bb_err = L1bb*np.sqrt((2*R1_err/R1)**2+(4*T1_err/T1)**2)
 
     # Get UV luminosity (i.e. bluewards of bluest band)
-    Luv = itg.trapz(bbody_absorbed(np.arange(1,wlref[0]),T1,R1,bluecut,sup),np.arange(1,wlref[0])) * 1e40
+    Luv = itg.trapezoid(bbody_absorbed(np.arange(1,wlref[0]),T1,R1,bluecut,sup),np.arange(1,wlref[0])) * 1e40
     Luv_err = Luv*np.sqrt((2*R1_err/R1)**2+(4*T1_err/T1)**2)
 
     # NIR luminosity from integrating blackbody above reddest band
-    Lnir = itg.trapz(bbody_absorbed(np.arange(wlref[-1],25000),T1,R1,bluecut,sup),np.arange(wlref[-1],25000)) * 1e40
+    Lnir = itg.trapezoid(bbody_absorbed(np.arange(wlref[-1],25000),T1,R1,bluecut,sup),np.arange(wlref[-1],25000)) * 1e40
     Lnir_err = Lnir*np.sqrt((2*R1_err/R1)**2+(4*T1_err/T1)**2)
 
 
@@ -1444,7 +1444,7 @@ for i in range(len(phase)):
     # Estimate total bolometric luminosity as integration over observed flux, plus corrections in UV and NIR from the blackbody extrapolations
     # If separate UV fit was used, Luv comes from this fit and Lnir comes from optical-only fit
     # If no separate fits, Luv and Lnir come from the same BB (inferior fit and therefore less accurate extrapolation)
-    L2 = Luv + itg.trapz(flux,wlref) + Lnir
+    L2 = Luv + itg.trapezoid(flux,wlref) + Lnir
     # Add errors on each part of the luminosity in quadrature
     L2_err = np.sqrt(L1_err**2 + (Luv_err)**2 + (Lnir_err)**2)
     # Append to light curve
