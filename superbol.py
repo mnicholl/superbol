@@ -1164,9 +1164,14 @@ systems = {}
 if is_correct_system == 'n':
     for i in filters:
         # This loop should ask for each band if it is in A-B or V-ega, and add to a dictionary
-        sys1 = input('Is '+i+'-band data in [A]-B or V-ega? ')
+        sys1 = input('Is '+i+'-band data in [A]B or [V]ega magnitudes? ').strip().lower()
         if not sys1: sys1 = 'AB'
-        systems[i] = sys1
+        if sys1 in ('a', 'ab'):
+            systems[i] = 'AB'
+        elif sys1 in ('v', 'vega'):
+            systems[i] = 'Vega'
+        else:
+            raise ValueError('Photometric system must be AB or Vega')
 else:
     for i in filters:
         systems[i] = default_sys[i]
